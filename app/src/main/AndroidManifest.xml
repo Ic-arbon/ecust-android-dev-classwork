@@ -35,25 +35,18 @@
         -->
         
         <!--
-            MainActivity声明
-            定义应用程序的主Activity组件
+            LoginActivity声明
+            定义应用程序的登录Activity组件，作为应用入口
         -->
         <activity
-            android:name=".MainActivity"
+            android:name=".LoginActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.Classwork2">
             
             <!--
-                name=".MainActivity": Activity的类名，"."表示相对于包名的路径
-                exported="true": 允许其他应用程序启动此Activity（对于启动Activity必须为true）
-                label: Activity在系统中显示的标题
-                theme: Activity使用的主题样式
-            -->
-            
-            <!--
                 Intent过滤器 - 定义此Activity可以响应的Intent
-                这个过滤器使MainActivity成为应用程序的入口点
+                这个过滤器使LoginActivity成为应用程序的入口点
             -->
             <intent-filter>
                 <!-- 主要Action：表示这是应用程序的主入口 -->
@@ -62,6 +55,17 @@
                 <!-- 启动器类别：表示此Activity应该出现在系统启动器中 -->
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+        
+        <!--
+            MainActivity声明
+            定义应用程序的主Activity组件
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.Classwork2">
         </activity>
     </application>
 
