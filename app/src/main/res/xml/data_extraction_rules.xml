@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    数据提取规则配置文件 (data_extraction_rules.xml)
+    
+    该文件是Android 12 (API 31) 引入的新备份规则系统，用于替代旧的backup_rules.xml。
+    它提供了更细粒度的数据备份和设备传输控制。
+    
+    功能说明：
+    1. cloud-backup: 控制哪些数据可以备份到Google云端
+    2. device-transfer: 控制设备间传输时哪些数据可以被包含
+    
+    参考文档：
+    https://developer.android.com/about/versions/12/backup-restore#xml-changes
+    
+    使用说明：取消注释并根据需要自定义规则
+-->
+<data-extraction-rules>
+    <!--
+        云备份规则
+        控制应用程序数据备份到Google Drive等云服务的规则
+    -->
+    <cloud-backup>
+        <!-- 
+            使用<include>和<exclude>标签控制备份内容
+            
+            示例：
+            包含特定文件或目录：
+            <include domain="file" path="important_data/"/>
+            <include domain="sharedpref" path="user_preferences.xml"/>
+            
+            排除敏感数据：
+            <exclude domain="sharedpref" path="device_id.xml"/>
+            <exclude domain="database" path="sensitive.db"/>
+        -->
+    </cloud-backup>
+    
+    <!--
+        设备传输规则
+        控制设备间传输（如使用Smart Switch等工具）时的数据传输规则
+        通常与云备份规则类似，但可以有不同的策略
+    -->
+    <!--
+    <device-transfer>
+        <include domain="sharedpref" path="."/>
+        <exclude domain="file" path="cache/"/>
+    </device-transfer>
+    -->
+</data-extraction-rules>

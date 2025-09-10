@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    主题资源文件 (themes.xml)
+    
+    该文件定义了应用程序使用的主题样式。在使用Jetpack Compose的应用中，
+    这个主题主要用于系统级别的样式设置，如状态栏、导航栏等。
+    应用内的UI样式主要通过Compose的主题系统（Theme.kt）来管理。
+-->
+<resources>
+
+    <!--
+        应用程序主题定义
+        
+        parent="android:Theme.Material.Light.NoActionBar":
+        - 继承自Android系统的Material Design浅色主题
+        - NoActionBar表示不显示传统的ActionBar，因为Compose应用通常使用TopAppBar
+        
+        在Compose应用中，这个主题主要影响：
+        1. Activity窗口的基本样式
+        2. 系统UI（状态栏、导航栏）的颜色
+        3. 系统对话框和弹窗的样式
+        4. 边到边显示模式的配置
+    -->
+    <style name="Theme.Classwork2" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

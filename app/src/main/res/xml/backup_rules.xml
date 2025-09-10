@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    应用程序备份规则配置文件 (backup_rules.xml)
+    
+    该文件定义了应用程序数据的自动备份规则，用于控制哪些数据可以被备份到
+    Google云端或设备传输时被包含。
+    
+    重要说明：
+    - 此文件仅在API 31 (Android 12) 以下的设备上使用
+    - API 31及以上的设备使用data_extraction_rules.xml文件
+    
+    参考文档：
+    - https://developer.android.com/guide/topics/data/autobackup
+    - https://developer.android.com/about/versions/12/backup-restore
+    
+    使用示例：取消注释并根据需要自定义以下规则
+-->
+<full-backup-content>
+    <!--
+        备份规则示例：
+        
+        包含共享首选项文件夹中的所有数据：
+        <include domain="sharedpref" path="."/>
+        
+        排除特定的共享首选项文件（如设备相关的敏感数据）：
+        <exclude domain="sharedpref" path="device.xml"/>
+        
+        其他常用domain类型：
+        - "file": 应用程序内部存储的文件
+        - "database": SQLite数据库文件
+        - "sharedpref": 共享首选项文件
+        - "external": 外部存储的文件
+        - "root": 应用程序根目录
+    -->
+</full-backup-content>
