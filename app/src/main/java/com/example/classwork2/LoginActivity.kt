@@ -33,7 +33,7 @@ import com.example.classwork2.ui.theme.Classwork2Theme
 
 /**
  * 头像类型密封类，用于管理不同类型的头像
- * 
+ *
  * 这个密封类提供了类型安全的方式来处理两种不同的头像类型：
  * - IconAvatar: 基于矢量图标的头像
  * - ImageAvatar: 基于图片资源的头像
@@ -58,7 +58,7 @@ sealed class AvatarType {
 
 /**
  * 登录界面Activity
- * 
+ *
  * 这个Activity提供了用户登录功能，包括：
  * - 用户名和密码输入
  * - 用户头像选择功能
@@ -91,12 +91,12 @@ class LoginActivity : ComponentActivity() {
 
 /**
  * 登录界面主组件
- * 
+ *
  * 这是登录界面的核心Compose组件，负责：
  * - 管理登录状态（用户名、密码、选中的头像）
  * - 根据屏幕方向自动切换布局（横屏/竖屏）
  * - 处理用户交互事件
- * 
+ *
  * @param onLogin 登录回调函数，当用户点击登录按钮时触发
  * @param modifier Compose修饰符，用于自定义样式和行为
  */
@@ -108,58 +108,75 @@ fun LoginScreen(
     // 状态管理 - 使用remember确保组件重组时状态不丢失
     var username by remember { mutableStateOf("") } // 用户名输入状态
     var password by remember { mutableStateOf("") } // 密码输入状态
-    var selectedAvatar by remember { // 当前选中的头像
+    var selectedAvatar by remember {
+        // 当前选中的头像
         mutableStateOf<AvatarType>(AvatarType.IconAvatar(Icons.Default.Person))
     }
     var showAvatarSelector by remember { mutableStateOf(false) } // 头像选择器显示状态
-    
+
     // 获取当前设备配置，用于判断屏幕方向
     val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     // 根据屏幕方向选择不同的布局组件
-    if (isLandscape) {
-        // 横屏布局：左右分栏，头像和标题在左侧，输入框在右侧
-        LandscapeLoginLayout(
-            username = username,
-            password = password,
-            selectedAvatar = selectedAvatar,
-            showAvatarSelector = showAvatarSelector,
-            onUsernameChange = { username = it },
-            onPasswordChange = { password = it },
-            onAvatarSelect = { selectedAvatar = it },
-            onAvatarSelectorToggle = { showAvatarSelector = it },
-            onLogin = onLogin,
-            modifier = modifier,
-        )
-    } else {
-        // 竖屏布局：垂直排列，所有元素从上到下布局
-        PortraitLoginLayout(
-            username = username,
-            password = password,
-            selectedAvatar = selectedAvatar,
-            showAvatarSelector = showAvatarSelector,
-            onUsernameChange = { username = it },
-            onPasswordChange = { password = it },
-            onAvatarSelect = { selectedAvatar = it },
-            onAvatarSelectorToggle = { showAvatarSelector = it },
-            onLogin = onLogin,
-            modifier = modifier,
-        )
+    // 横屏布局：左右分栏，头像和标题在左侧，输入框在右侧
+    // 竖屏布局：垂直排列，所有元素从上到下布局
+    when (configuration.orientation) {
+        Configuration.ORIENTATION_LANDSCAPE -> {
+            LandscapeLoginLayout(
+                username = username,
+                password = password,
+                selectedAvatar = selectedAvatar,
+                showAvatarSelector = showAvatarSelector,
+                onUsernameChange = { username = it },
+                onPasswordChange = { password = it },
+                onAvatarSelect = { selectedAvatar = it },
+                onAvatarSelectorToggle = { showAvatarSelector = it },
+                onLogin = onLogin,
+                modifier = modifier,
+            )
+        }
+        Configuration.ORIENTATION_PORTRAIT -> {
+            PortraitLoginLayout(
+                username = username,
+                password = password,
+                selectedAvatar = selectedAvatar,
+                showAvatarSelector = showAvatarSelector,
+                onUsernameChange = { username = it },
+                onPasswordChange = { password = it },
+                onAvatarSelect = { selectedAvatar = it },
+                onAvatarSelectorToggle = { showAvatarSelector = it },
+                onLogin = onLogin,
+                modifier = modifier,
+            )
+        }
+        else -> {
+            PortraitLoginLayout(
+                username = username,
+                password = password,
+                selectedAvatar = selectedAvatar,
+                showAvatarSelector = showAvatarSelector,
+                onUsernameChange = { username = it },
+                onPasswordChange = { password = it },
+                onAvatarSelect = { selectedAvatar = it },
+                onAvatarSelectorToggle = { showAvatarSelector = it },
+                onLogin = onLogin,
+                modifier = modifier,
+            )
+        }
     }
 }
 
 /**
  * 竖屏模式登录布局组件
- * 
+ *
  * 专为竖屏（Portrait）模式优化的登录界面布局：
  * - 采用垂直Column布局，所有元素从上到下排列
  * - 头像位于顶部，下方依次是输入框和登录按钮
  * - 支持垂直滚动，确保在小屏设备上也能正常显示
  * - 居中对齐，提供良好的视觉效果
- * 
+ *
  * @param username 当前用户名输入值
- * @param password 当前密码输入值  
+ * @param password 当前密码输入值
  * @param selectedAvatar 当前选中的头像
  * @param showAvatarSelector 头像选择器是否显示
  * @param onUsernameChange 用户名输入变化回调
@@ -183,19 +200,16 @@ fun PortraitLoginLayout(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()) // 支持垂直滚动
-            .padding(32.dp), // 添加外边距
+        modifier =
+            modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()) // 支持垂直滚动
+                .padding(32.dp), // 添加外边距
         horizontalAlignment = Alignment.CenterHorizontally, // 水平居中
         verticalArrangement = Arrangement.Center, // 垂直居中
     ) {
         // 应用标题
-        Text(
-            text = "魔法图书馆", 
-            fontSize = 24.sp, 
-            modifier = Modifier.padding(bottom = 32.dp)
-        )
+        Text(text = "魔法图书馆", fontSize = 24.sp, modifier = Modifier.padding(bottom = 32.dp))
 
         // 头像选择器组件 - 可点击的圆形头像框
         AvatarSelector(
@@ -229,25 +243,20 @@ fun PortraitLoginLayout(
         )
 
         // 登录按钮 - 占满宽度
-        Button(
-            onClick = onLogin, 
-            modifier = Modifier.fillMaxWidth()
-        ) { 
-            Text("登入") 
-        }
+        Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("登入") }
     }
 }
 
 /**
  * 横屏模式登录布局组件
- * 
+ *
  * 专为横屏（Landscape）模式优化的登录界面布局：
  * - 采用水平Row布局，充分利用横屏的宽度空间
  * - 左侧显示应用标题和头像选择器
  * - 右侧显示用户名、密码输入框和登录按钮
  * - 两侧均等分配空间，提供平衡的视觉效果
  * - 右侧支持垂直滚动，适应不同屏幕高度
- * 
+ *
  * @param username 当前用户名输入值
  * @param password 当前密码输入值
  * @param selectedAvatar 当前选中的头像
@@ -283,11 +292,7 @@ fun LandscapeLoginLayout(
             verticalArrangement = Arrangement.Center, // 垂直居中
         ) {
             // 应用标题 - 横屏模式下使用更大的字体
-            Text(
-                text = "魔法图书馆", 
-                fontSize = 28.sp, 
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
+            Text(text = "魔法图书馆", fontSize = 28.sp, modifier = Modifier.padding(bottom = 24.dp))
 
             // 头像选择器 - 横屏模式下使用更大的头像尺寸
             AvatarSelector(
@@ -307,9 +312,10 @@ fun LandscapeLoginLayout(
 
         // 右侧区域：用户输入区域
         Column(
-            modifier = Modifier
-                .weight(1f) // 占据右半部分空间
-                .verticalScroll(rememberScrollState()), // 支持垂直滚动
+            modifier =
+                Modifier
+                    .weight(1f) // 占据右半部分空间
+                    .verticalScroll(rememberScrollState()), // 支持垂直滚动
             horizontalAlignment = Alignment.CenterHorizontally, // 水平居中
             verticalArrangement = Arrangement.Center, // 垂直居中
         ) {
@@ -331,28 +337,23 @@ fun LandscapeLoginLayout(
             )
 
             // 登录按钮 - 占满当前区域宽度
-            Button(
-                onClick = onLogin, 
-                modifier = Modifier.fillMaxWidth()
-            ) { 
-                Text("登入") 
-            }
+            Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("登入") }
         }
     }
 }
 
 /**
  * 头像选择器组件
- * 
+ *
  * 这是一个复合组件，包含主头像显示和可展开的头像选择列表：
- * 
+ *
  * 功能特性：
  * - 主头像显示：显示当前选中的头像，可点击展开选择器
  * - 头像选择列表：水平滚动的头像选项列表，支持图标和图片两种类型
  * - 视觉反馈：选中状态有不同的颜色显示，提供良好的用户体验
  * - 类型支持：同时支持Material Icons和自定义图片资源
  * - 响应式设计：根据头像类型自动调整显示方式
- * 
+ *
  * @param selectedAvatar 当前选中的头像
  * @param showSelector 是否显示头像选择器列表
  * @param onAvatarClick 主头像点击回调，用于展开/收起选择器
@@ -369,19 +370,21 @@ fun AvatarSelector(
 ) {
     // 定义可选的头像选项列表
     // 包含一个默认的人物图标和三个自定义图片头像
-    val avatarOptions = listOf(
-        AvatarType.IconAvatar(Icons.Default.Person), // 默认Material Icons人物图标
-        AvatarType.ImageAvatar(R.drawable.av1),      // 自定义头像1
-        AvatarType.ImageAvatar(R.drawable.av2),      // 自定义头像2
-        AvatarType.ImageAvatar(R.drawable.av3),      // 自定义头像3
-    )
+    val avatarOptions =
+        listOf(
+            AvatarType.IconAvatar(Icons.Default.Person), // 默认Material Icons人物图标
+            AvatarType.ImageAvatar(R.drawable.av1), // 自定义头像1
+            AvatarType.ImageAvatar(R.drawable.av2), // 自定义头像2
+            AvatarType.ImageAvatar(R.drawable.av3), // 自定义头像3
+        )
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         // 主头像显示区域 - 圆形可点击头像
         Surface(
-            modifier = modifier
-                .clip(CircleShape) // 圆形裁剪
-                .clickable { onAvatarClick() }, // 点击展开选择器
+            modifier =
+                modifier
+                    .clip(CircleShape) // 圆形裁剪
+                    .clickable { onAvatarClick() }, // 点击展开选择器
             color = MaterialTheme.colorScheme.primaryContainer, // 使用主题容器颜色
         ) {
             // 根据头像类型选择不同的显示方式
@@ -424,17 +427,19 @@ fun AvatarSelector(
                     items(avatarOptions) { avatar ->
                         // 单个头像选项
                         Surface(
-                            modifier = Modifier
-                                .size(48.dp) // 选项头像尺寸
-                                .clip(CircleShape)
-                                .clickable { onAvatarSelect(avatar) }, // 点击选择头像
-                            color = if (avatar == selectedAvatar) {
-                                // 选中状态使用主色
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                // 未选中状态使用表面变体色
-                                MaterialTheme.colorScheme.surfaceVariant
-                            },
+                            modifier =
+                                Modifier
+                                    .size(48.dp) // 选项头像尺寸
+                                    .clip(CircleShape)
+                                    .clickable { onAvatarSelect(avatar) }, // 点击选择头像
+                            color =
+                                if (avatar == selectedAvatar) {
+                                    // 选中状态使用主色
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    // 未选中状态使用表面变体色
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                },
                         ) {
                             // 根据头像类型显示相应内容
                             when (avatar) {
@@ -444,13 +449,14 @@ fun AvatarSelector(
                                         avatar.icon,
                                         contentDescription = "头像选项",
                                         modifier = Modifier.fillMaxSize().padding(8.dp),
-                                        tint = if (avatar == selectedAvatar) {
-                                            // 选中状态的图标颜色
-                                            MaterialTheme.colorScheme.onPrimary
-                                        } else {
-                                            // 未选中状态的图标颜色
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
+                                        tint =
+                                            if (avatar == selectedAvatar) {
+                                                // 选中状态的图标颜色
+                                                MaterialTheme.colorScheme.onPrimary
+                                            } else {
+                                                // 未选中状态的图标颜色
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
                                     )
                                 }
                                 is AvatarType.ImageAvatar -> {
