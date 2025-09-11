@@ -74,6 +74,23 @@ sealed class AvatarType : Parcelable {
 }
 
 /**
+ * 登录布局公共属性数据类
+ * 用于减少参数传递的重复代码
+ */
+data class LoginLayoutProps(
+    val username: String,
+    val password: String,
+    val userAvatar: AvatarType,
+    val showAvatarSelector: Boolean,
+    val onUsernameChange: (String) -> Unit,
+    val onPasswordChange: (String) -> Unit,
+    val onAvatarSelect: (AvatarType) -> Unit,
+    val onAvatarSelectorToggle: (Boolean) -> Unit,
+    val onLogin: () -> Unit,
+    val modifier: Modifier = Modifier,
+)
+
+/**
  * 登录界面Activity
  *
  * 这个Activity提供了用户登录功能，包括：
@@ -139,7 +156,7 @@ fun LoginScreen(
     // 状态管理 - 使用rememberSaveable确保配置更改时状态不丢失
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") } // 密码不持久保存
-    var selectedAvatar by rememberSaveable { mutableStateOf<AvatarType>(AvatarType.IconAvatar("person")) }
+    var userAvatar by rememberSaveable { mutableStateOf<AvatarType>(AvatarType.IconAvatar("person")) }
     var showAvatarSelector by rememberSaveable { mutableStateOf(false) }
     
     // 初始化时从UserInfoManager恢复保存的用户信息（仅在首次创建时）
@@ -150,7 +167,7 @@ fun LoginScreen(
             val savedUserInfo = userInfoManager.getUserInfo()
             if (savedUserInfo.username.isNotEmpty()) {
                 username = savedUserInfo.username
-                selectedAvatar = savedUserInfo.userAvatar
+                userAvatar = savedUserInfo.userAvatar
             }
             isInitialized = true
         }
@@ -160,57 +177,23 @@ fun LoginScreen(
     val configuration = LocalConfiguration.current
 
     // 根据屏幕方向选择不同的布局组件
-    // 横屏布局：左右分栏，头像和标题在左侧，输入框在右侧
-    // 竖屏布局：垂直排列，所有元素从上到下布局
-    when (configuration.orientation) {
-        Configuration.ORIENTATION_LANDSCAPE -> {
-            LandscapeLoginLayout(
-                username = username,
-                password = password,
-                selectedAvatar = selectedAvatar,
-                showAvatarSelector = showAvatarSelector,
-                onUsernameChange = { username = it },
-                onPasswordChange = { password = it },
-                onAvatarSelect = { selectedAvatar = it },
-                onAvatarSelectorToggle = { showAvatarSelector = it },
-                onLogin = { 
-                    onLogin(UserInfo(username, selectedAvatar))
-                },
-                modifier = modifier,
-            )
-        }
-        Configuration.ORIENTATION_PORTRAIT -> {
-            PortraitLoginLayout(
-                username = username,
-                password = password,
-                selectedAvatar = selectedAvatar,
-                showAvatarSelector = showAvatarSelector,
-                onUsernameChange = { username = it },
-                onPasswordChange = { password = it },
-                onAvatarSelect = { selectedAvatar = it },
-                onAvatarSelectorToggle = { showAvatarSelector = it },
-                onLogin = { 
-                    onLogin(UserInfo(username, selectedAvatar))
-                },
-                modifier = modifier,
-            )
-        }
-        else -> {
-            PortraitLoginLayout(
-                username = username,
-                password = password,
-                selectedAvatar = selectedAvatar,
-                showAvatarSelector = showAvatarSelector,
-                onUsernameChange = { username = it },
-                onPasswordChange = { password = it },
-                onAvatarSelect = { selectedAvatar = it },
-                onAvatarSelectorToggle = { showAvatarSelector = it },
-                onLogin = { 
-                    onLogin(UserInfo(username, selectedAvatar))
-                },
-                modifier = modifier,
-            )
-        }
+    val commonProps = LoginLayoutProps(
+        username = username,
+        password = password,
+        userAvatar = userAvatar,
+        showAvatarSelector = showAvatarSelector,
+        onUsernameChange = { username = it },
+        onPasswordChange = { password = it },
+        onAvatarSelect = { userAvatar = it },
+        onAvatarSelectorToggle = { showAvatarSelector = it },
+        onLogin = { onLogin(UserInfo(username, userAvatar)) },
+        modifier = modifier
+    )
+
+    if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+        LandscapeLoginLayout(commonProps)
+    } else {
+        PortraitLoginLayout(commonProps)
     }
 }
 
@@ -223,30 +206,21 @@ fun LoginScreen(
  * - 支持垂直滚动，确保在小屏设备上也能正常显示
  * - 居中对齐，提供良好的视觉效果
  *
- * @param username 当前用户名输入值
- * @param password 当前密码输入值
- * @param selectedAvatar 当前选中的头像
- * @param showAvatarSelector 头像选择器是否显示
- * @param onUsernameChange 用户名输入变化回调
- * @param onPasswordChange 密码输入变化回调
- * @param onAvatarSelect 头像选择回调
- * @param onAvatarSelectorToggle 头像选择器切换回调
- * @param onLogin 登录按钮点击回调
- * @param modifier Compose修饰符
+ * @param props 登录布局公共属性，包含：
+ *   - username: 当前用户名输入值
+ *   - password: 当前密码输入值
+ *   - userAvatar: 当前选中的头像
+ *   - showAvatarSelector: 头像选择器是否显示
+ *   - onUsernameChange: 用户名输入变化回调
+ *   - onPasswordChange: 密码输入变化回调
+ *   - onAvatarSelect: 头像选择回调
+ *   - onAvatarSelectorToggle: 头像选择器切换回调
+ *   - onLogin: 登录按钮点击回调
+ *   - modifier: Compose修饰符
  */
 @Composable
-fun PortraitLoginLayout(
-    username: String,
-    password: String,
-    selectedAvatar: AvatarType,
-    showAvatarSelector: Boolean,
-    onUsernameChange: (String) -> Unit,
-    onPasswordChange: (String) -> Unit,
-    onAvatarSelect: (AvatarType) -> Unit,
-    onAvatarSelectorToggle: (Boolean) -> Unit,
-    onLogin: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun PortraitLoginLayout(props: LoginLayoutProps) {
+    with(props) {
     Column(
         modifier =
             modifier
@@ -261,7 +235,7 @@ fun PortraitLoginLayout(
 
         // 头像选择器组件 - 可点击的圆形头像框
         AvatarSelector(
-            selectedAvatar = selectedAvatar,
+            selectedAvatar = userAvatar,
             showSelector = showAvatarSelector,
             onAvatarClick = { onAvatarSelectorToggle(!showAvatarSelector) },
             onAvatarSelect = { avatar ->
@@ -293,6 +267,7 @@ fun PortraitLoginLayout(
         // 登录按钮 - 占满宽度
         Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("登入") }
     }
+    }
 }
 
 /**
@@ -305,30 +280,21 @@ fun PortraitLoginLayout(
  * - 两侧均等分配空间，提供平衡的视觉效果
  * - 右侧支持垂直滚动，适应不同屏幕高度
  *
- * @param username 当前用户名输入值
- * @param password 当前密码输入值
- * @param selectedAvatar 当前选中的头像
- * @param showAvatarSelector 头像选择器是否显示
- * @param onUsernameChange 用户名输入变化回调
- * @param onPasswordChange 密码输入变化回调
- * @param onAvatarSelect 头像选择回调
- * @param onAvatarSelectorToggle 头像选择器切换回调
- * @param onLogin 登录按钮点击回调
- * @param modifier Compose修饰符
+ * @param props 登录布局公共属性，包含：
+ *   - username: 当前用户名输入值
+ *   - password: 当前密码输入值
+ *   - userAvatar: 当前选中的头像
+ *   - showAvatarSelector: 头像选择器是否显示
+ *   - onUsernameChange: 用户名输入变化回调
+ *   - onPasswordChange: 密码输入变化回调
+ *   - onAvatarSelect: 头像选择回调
+ *   - onAvatarSelectorToggle: 头像选择器切换回调
+ *   - onLogin: 登录按钮点击回调
+ *   - modifier: Compose修饰符
  */
 @Composable
-fun LandscapeLoginLayout(
-    username: String,
-    password: String,
-    selectedAvatar: AvatarType,
-    showAvatarSelector: Boolean,
-    onUsernameChange: (String) -> Unit,
-    onPasswordChange: (String) -> Unit,
-    onAvatarSelect: (AvatarType) -> Unit,
-    onAvatarSelectorToggle: (Boolean) -> Unit,
-    onLogin: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun LandscapeLoginLayout(props: LoginLayoutProps) {
+    with(props) {
     Row(
         modifier = modifier.fillMaxSize().padding(32.dp),
         verticalAlignment = Alignment.CenterVertically, // 垂直居中对齐
@@ -344,7 +310,7 @@ fun LandscapeLoginLayout(
 
             // 头像选择器 - 横屏模式下使用更大的头像尺寸
             AvatarSelector(
-                selectedAvatar = selectedAvatar,
+                selectedAvatar = userAvatar,
                 showSelector = showAvatarSelector,
                 onAvatarClick = { onAvatarSelectorToggle(!showAvatarSelector) },
                 onAvatarSelect = { avatar ->
@@ -387,6 +353,7 @@ fun LandscapeLoginLayout(
             // 登录按钮 - 占满当前区域宽度
             Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("登入") }
         }
+    }
     }
 }
 

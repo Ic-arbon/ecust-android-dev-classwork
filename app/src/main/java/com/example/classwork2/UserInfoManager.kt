@@ -38,7 +38,7 @@ class UserInfoManager(private val context: Context) {
         private const val AVATAR_TYPE_IMAGE = "image"
     }
     
-    private val localStorage: SharedPreferences =
+    private val userDataStorage: SharedPreferences =
         context.getSharedPreferences(STORAGE_NAME, Context.MODE_PRIVATE)
     
     /**
@@ -47,7 +47,7 @@ class UserInfoManager(private val context: Context) {
      * @param userInfo 要保存的用户信息
      */
     fun saveUserInfo(userInfo: UserInfo) {
-        val editor = localStorage.edit()
+        val editor = userDataStorage.edit()
         
         // 保存用户名
         editor.putString(KEY_USERNAME, userInfo.username)
@@ -74,17 +74,17 @@ class UserInfoManager(private val context: Context) {
      * @return 用户信息，如果没有保存的信息则返回默认值
      */
     fun getUserInfo(): UserInfo {
-        val username = localStorage.getString(KEY_USERNAME, "") ?: ""
-        val avatarType = localStorage.getString(KEY_AVATAR_TYPE, AVATAR_TYPE_ICON) ?: AVATAR_TYPE_ICON
+        val username = userDataStorage.getString(KEY_USERNAME, "") ?: ""
+        val avatarType = userDataStorage.getString(KEY_AVATAR_TYPE, AVATAR_TYPE_ICON) ?: AVATAR_TYPE_ICON
         
         val avatar = when (avatarType) {
             AVATAR_TYPE_ICON -> {
                 // 从保存的图标名称重建IconAvatar
-                val iconName = localStorage.getString(KEY_AVATAR_ICON_NAME, "person") ?: "person"
+                val iconName = userDataStorage.getString(KEY_AVATAR_ICON_NAME, "person") ?: "person"
                 AvatarType.IconAvatar(iconName)
             }
             AVATAR_TYPE_IMAGE -> {
-                val drawableRes = localStorage.getInt(KEY_AVATAR_DRAWABLE_RES, R.drawable.av1)
+                val drawableRes = userDataStorage.getInt(KEY_AVATAR_DRAWABLE_RES, R.drawable.av1)
                 AvatarType.ImageAvatar(drawableRes)
             }
             else -> AvatarType.IconAvatar("person")
@@ -97,7 +97,7 @@ class UserInfoManager(private val context: Context) {
      * 清除所有用户信息
      */
     fun clearUserInfo() {
-        localStorage.edit().clear().apply()
+        userDataStorage.edit().clear().apply()
     }
     
     /**
@@ -106,7 +106,7 @@ class UserInfoManager(private val context: Context) {
      * @return 如果有保存的用户名则返回true
      */
     fun hasUserInfo(): Boolean {
-        val username = localStorage.getString(KEY_USERNAME, "")
+        val username = userDataStorage.getString(KEY_USERNAME, "")
         return !username.isNullOrEmpty()
     }
 }
