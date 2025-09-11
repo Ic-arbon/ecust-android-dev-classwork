@@ -9,9 +9,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -24,10 +29,46 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.classwork2.ui.theme.Classwork2Theme
 import kotlinx.coroutines.launch
+
+/**
+ * 书籍数据类
+ * 
+ * 表示图书馆中的一本书籍信息
+ * 
+ * @param id 书籍唯一标识符
+ * @param title 书籍标题
+ * @param coverImageRes 封面图片资源ID，如果为null则使用默认封面
+ */
+data class Book(
+    val id: String,
+    val title: String,
+    val coverImageRes: Int? = null
+)
+
+/**
+ * 生成示例书籍数据
+ */
+fun getSampleBooks(): List<Book> {
+    return listOf(
+        Book("1", "魔法原理与实践", R.drawable.maodie),
+        Book("2", "古代咒语大全"),
+        Book("3", "炼金术基础"),
+        Book("4", "魔法药剂学"),
+        Book("5", "占星术入门"),
+        Book("6", "魔法生物学"),
+        Book("7", "时空魔法理论"),
+        Book("8", "元素魔法指南"),
+        Book("9", "魔法防御术"),
+        Book("10", "高级变形术"),
+        Book("11", "魔法历史"),
+        Book("12", "幻术与错觉")
+    )
+}
 
 /**
  * MainActivity - 应用程序的主Activity
@@ -297,31 +338,122 @@ fun NavigationOptionsSection(
 }
 
 /**
+ * 书籍项组件
+ *
+ * 显示单个书籍，包含封面图片和标题
+ * 
+ * @param book 书籍信息
+ */
+@Composable
+fun BookItem(
+    book: Book,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(0.7f), // 固定宽高比，模拟书籍比例
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column {
+            // 封面图片
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                if (book.coverImageRes != null) {
+                    Image(
+                        painter = painterResource(book.coverImageRes),
+                        contentDescription = book.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    // 默认书籍图标
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .padding(16.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+            
+            // 书籍标题
+            Text(
+                text = book.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+/**
+ * 书籍列表组件
+ *
+ * 显示响应式网格布局的书籍列表，根据屏幕尺寸自动调整列数
+ * 
+ * @param books 书籍列表
+ */
+@Composable
+fun BooksList(
+    books: List<Book>,
+    modifier: Modifier = Modifier
+) {
+    // 获取屏幕配置信息
+    val configuration = LocalConfiguration.current
+    
+    // 根据屏幕宽度计算列数
+    val columns = when {
+        configuration.screenWidthDp < 600 -> 2  // 手机竖屏：2列
+        configuration.screenWidthDp < 840 -> 3  // 平板竖屏或手机横屏：3列
+        else -> 4  // 大屏设备：4列
+    }
+    
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(columns),
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        items(books) { book ->
+            BookItem(book = book)
+        }
+    }
+}
+
+/**
  * 主要内容区域组件
  *
- * 显示应用的主要内容，目前是简单的欢迎信息
+ * 显示应用的主要内容，现在显示书籍列表
  */
 @Composable
 fun MainContent(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "欢迎来到魔法图书馆！",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "点击左上角菜单图标打开抽屉导航",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    // 获取示例书籍数据
+    val books = remember { getSampleBooks() }
+    
+    // 显示书籍列表
+    BooksList(
+        books = books,
+        modifier = modifier
+    )
 }
 
 /**
