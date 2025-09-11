@@ -3,6 +3,8 @@ package com.example.classwork2
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,20 +40,34 @@ import com.example.classwork2.ui.theme.Classwork2Theme
  * 这个密封类提供了类型安全的方式来处理两种不同的头像类型：
  * - IconAvatar: 基于矢量图标的头像
  * - ImageAvatar: 基于图片资源的头像
+ * 
+ * 实现了Parcelable接口以支持状态保存和恢复
  */
-sealed class AvatarType {
+@Parcelize
+sealed class AvatarType : Parcelable {
     /**
      * 图标头像类型
-     * @param icon 矢量图标，通常来自Material Icons
+     * @param iconName 图标名称标识符，用于重建ImageVector
      */
+    @Parcelize
     data class IconAvatar(
-        val icon: ImageVector,
-    ) : AvatarType()
+        val iconName: String = "person",
+    ) : AvatarType() {
+        /**
+         * 根据图标名称获取对应的ImageVector
+         */
+        val icon: ImageVector
+            get() = when (iconName) {
+                "person" -> Icons.Default.Person
+                else -> Icons.Default.Person // 默认使用Person图标
+            }
+    }
 
     /**
      * 图片头像类型
      * @param drawableRes 图片资源ID，用@DrawableRes注解确保类型安全
      */
+    @Parcelize
     data class ImageAvatar(
         @DrawableRes val drawableRes: Int,
     ) : AvatarType()
@@ -64,18 +81,29 @@ sealed class AvatarType {
  * - 用户头像选择功能
  * - 响应式布局（支持横屏和竖屏）
  * - Material 3 设计规范
+ * - 用户信息持久化存储
  */
 class LoginActivity : ComponentActivity() {
+    
+    private lateinit var userInfoManager: UserInfoManager
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge() // 启用边到边显示
+        
+        // 初始化用户信息管理器
+        userInfoManager = UserInfoManager(this)
 
         setContent {
             Classwork2Theme {
                 // 使用Scaffold提供基础的Material Design布局结构
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     LoginScreen(
-                        onLogin = {
+                        userInfoManager = userInfoManager,
+                        onLogin = { userInfo ->
+                            // 保存用户信息
+                            userInfoManager.saveUserInfo(userInfo)
+                            
                             // 登录成功后跳转到MainActivity
                             val intent = Intent(this@LoginActivity, MainActivity::class.java)
                             startActivity(intent)
@@ -96,23 +124,37 @@ class LoginActivity : ComponentActivity() {
  * - 管理登录状态（用户名、密码、选中的头像）
  * - 根据屏幕方向自动切换布局（横屏/竖屏）
  * - 处理用户交互事件
+ * - 从本地存储恢复用户信息，解决屏幕旋转时状态丢失问题
  *
+ * @param userInfoManager 用户信息管理器，用于读取和保存用户信息
  * @param onLogin 登录回调函数，当用户点击登录按钮时触发
  * @param modifier Compose修饰符，用于自定义样式和行为
  */
 @Composable
 fun LoginScreen(
-    onLogin: () -> Unit,
+    userInfoManager: UserInfoManager,
+    onLogin: (UserInfo) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // 状态管理 - 使用remember确保组件重组时状态不丢失
-    var username by remember { mutableStateOf("") } // 用户名输入状态
-    var password by remember { mutableStateOf("") } // 密码输入状态
-    var selectedAvatar by remember {
-        // 当前选中的头像
-        mutableStateOf<AvatarType>(AvatarType.IconAvatar(Icons.Default.Person))
+    // 状态管理 - 使用rememberSaveable确保配置更改时状态不丢失
+    var username by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") } // 密码不持久保存
+    var selectedAvatar by rememberSaveable { mutableStateOf<AvatarType>(AvatarType.IconAvatar("person")) }
+    var showAvatarSelector by rememberSaveable { mutableStateOf(false) }
+    
+    // 初始化时从UserInfoManager恢复保存的用户信息（仅在首次创建时）
+    var isInitialized by rememberSaveable { mutableStateOf(false) }
+    
+    LaunchedEffect(Unit) {
+        if (!isInitialized) {
+            val savedUserInfo = userInfoManager.getUserInfo()
+            if (savedUserInfo.username.isNotEmpty()) {
+                username = savedUserInfo.username
+                selectedAvatar = savedUserInfo.userAvatar
+            }
+            isInitialized = true
+        }
     }
-    var showAvatarSelector by remember { mutableStateOf(false) } // 头像选择器显示状态
 
     // 获取当前设备配置，用于判断屏幕方向
     val configuration = LocalConfiguration.current
@@ -131,7 +173,9 @@ fun LoginScreen(
                 onPasswordChange = { password = it },
                 onAvatarSelect = { selectedAvatar = it },
                 onAvatarSelectorToggle = { showAvatarSelector = it },
-                onLogin = onLogin,
+                onLogin = { 
+                    onLogin(UserInfo(username, selectedAvatar))
+                },
                 modifier = modifier,
             )
         }
@@ -145,7 +189,9 @@ fun LoginScreen(
                 onPasswordChange = { password = it },
                 onAvatarSelect = { selectedAvatar = it },
                 onAvatarSelectorToggle = { showAvatarSelector = it },
-                onLogin = onLogin,
+                onLogin = { 
+                    onLogin(UserInfo(username, selectedAvatar))
+                },
                 modifier = modifier,
             )
         }
@@ -159,7 +205,9 @@ fun LoginScreen(
                 onPasswordChange = { password = it },
                 onAvatarSelect = { selectedAvatar = it },
                 onAvatarSelectorToggle = { showAvatarSelector = it },
-                onLogin = onLogin,
+                onLogin = { 
+                    onLogin(UserInfo(username, selectedAvatar))
+                },
                 modifier = modifier,
             )
         }
@@ -372,7 +420,7 @@ fun AvatarSelector(
     // 包含一个默认的人物图标和三个自定义图片头像
     val avatarOptions =
         listOf(
-            AvatarType.IconAvatar(Icons.Default.Person), // 默认Material Icons人物图标
+            AvatarType.IconAvatar("person"), // 默认Material Icons人物图标
             AvatarType.ImageAvatar(R.drawable.av1), // 自定义头像1
             AvatarType.ImageAvatar(R.drawable.av2), // 自定义头像2
             AvatarType.ImageAvatar(R.drawable.av3), // 自定义头像3

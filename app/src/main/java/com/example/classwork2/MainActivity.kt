@@ -35,6 +35,9 @@ import kotlinx.coroutines.launch
  * 这是应用程序的入口点，继承自ComponentActivity以支持Jetpack Compose。 该Activity负责设置应用程序的UI内容和配置边到边显示模式。
  */
 class MainActivity : ComponentActivity() {
+    
+    private lateinit var userInfoManager: UserInfoManager
+    
     /**
      * Activity生命周期方法 - 在Activity创建时调用
      *
@@ -45,6 +48,9 @@ class MainActivity : ComponentActivity() {
 
         // 启用边到边显示模式，让应用内容可以延伸到状态栏和导航栏区域
         enableEdgeToEdge()
+        
+        // 初始化用户信息管理器
+        userInfoManager = UserInfoManager(this)
 
         // 设置Compose UI内容
         setContent {
@@ -52,8 +58,10 @@ class MainActivity : ComponentActivity() {
             Classwork2Theme {
                 // 使用带抽屉导航栏的主界面
                 MainScreenWithDrawer(
+                    userInfoManager = userInfoManager,
                     onLogout = {
-                        // 登出功能：跳转到登录界面
+                        // 登出功能：清除用户信息并跳转到登录界面
+                        userInfoManager.clearUserInfo()
                         val intent = Intent(this@MainActivity, LoginActivity::class.java)
                         startActivity(intent)
                         finish() // 关闭主界面，防止用户按返回键回到主界面
@@ -73,11 +81,13 @@ class MainActivity : ComponentActivity() {
  * - 抽屉导航内容（用户头像、用户名、登出选项）
  * - 主要内容区域
  *
+ * @param userInfoManager 用户信息管理器，用于获取当前用户信息
  * @param onLogout 登出回调函数，用于处理用户登出操作
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreenWithDrawer(
+    userInfoManager: UserInfoManager,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -85,9 +95,14 @@ fun MainScreenWithDrawer(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // 模拟用户信息（实际应用中应该从SharedPreferences或数据库获取）
-    val currentUserName = "魔法使"
-    val currentUserAvatar = AvatarType.IconAvatar(Icons.Default.Person)
+    // 从UserInfoManager获取真实的用户信息
+    val currentUserInfo = remember { userInfoManager.getUserInfo() }
+    val currentUserName = if (currentUserInfo.username.isNotEmpty()) {
+        currentUserInfo.username
+    } else {
+        "魔法使" // 默认用户名
+    }
+    val currentUserAvatar = currentUserInfo.userAvatar
 
     // 使用ModalNavigationDrawer实现抽屉导航
     ModalNavigationDrawer(
@@ -336,5 +351,26 @@ fun greetingPreview() {
 @Preview(showBackground = true)
 @Composable
 fun MainScreenPreview() {
-    Classwork2Theme { MainScreenWithDrawer(onLogout = { /* 预览中的空实现 */ }) }
+    Classwork2Theme { 
+        // 预览中创建一个模拟的UserInfoManager
+        val mockUserInfo = UserInfo("预览用户", AvatarType.IconAvatar("person"))
+        
+        // 创建一个简化的预览版本
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "主界面预览",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "用户: ${mockUserInfo.username}",
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+    }
 }
