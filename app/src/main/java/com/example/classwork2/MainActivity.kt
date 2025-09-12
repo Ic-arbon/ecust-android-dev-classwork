@@ -430,7 +430,7 @@ fun BooksList(
         columns = GridCells.Fixed(columns),
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        horizontalArrangement = Arrangement.spacedBy(32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         items(books) { book ->
