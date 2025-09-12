@@ -76,12 +76,25 @@ sealed class AvatarType : Parcelable {
 /**
  * 登录布局公共属性数据类
  * 用于减少参数传递的重复代码
+ * 
+ * @param username 当前用户名输入值
+ * @param password 当前密码输入值
+ * @param userAvatar 当前选中的用户头像
+ * @param showAvatarSelector 头像选择器是否显示
+ * @param showError 登录验证错误状态，控制输入框边框颜色
+ * @param onUsernameChange 用户名输入变化回调
+ * @param onPasswordChange 密码输入变化回调
+ * @param onAvatarSelect 头像选择回调
+ * @param onAvatarSelectorToggle 头像选择器显示/隐藏切换回调
+ * @param onLogin 登录按钮点击回调
+ * @param modifier Compose修饰符
  */
 data class LoginLayoutProps(
     val username: String,
     val password: String,
     val userAvatar: AvatarType,
     val showAvatarSelector: Boolean,
+    val showError: Boolean, // 错误状态标志：true时空输入框变红
     val onUsernameChange: (String) -> Unit,
     val onPasswordChange: (String) -> Unit,
     val onAvatarSelect: (AvatarType) -> Unit,
@@ -158,6 +171,7 @@ fun LoginScreen(
     var password by rememberSaveable { mutableStateOf("") } // 密码不持久保存
     var userAvatar by rememberSaveable { mutableStateOf<AvatarType>(AvatarType.IconAvatar("person")) }
     var showAvatarSelector by rememberSaveable { mutableStateOf(false) }
+    var showError by rememberSaveable { mutableStateOf(false) } // 登录验证错误状态标志
     
     // 初始化时从UserInfoManager恢复保存的用户信息（仅在首次创建时）
     var isInitialized by rememberSaveable { mutableStateOf(false) }
@@ -182,11 +196,22 @@ fun LoginScreen(
         password = password,
         userAvatar = userAvatar,
         showAvatarSelector = showAvatarSelector,
-        onUsernameChange = { username = it },
-        onPasswordChange = { password = it },
+        showError = showError,
+        onUsernameChange = { username = it; showError = false }, // 输入时清除错误状态
+        onPasswordChange = { password = it; showError = false }, // 输入时清除错误状态
         onAvatarSelect = { userAvatar = it },
         onAvatarSelectorToggle = { showAvatarSelector = it },
-        onLogin = { onLogin(UserInfo(username, userAvatar)) },
+        onLogin = { 
+            // 登录验证逻辑：检查用户名和密码是否为空
+            if (username.trim().isNotEmpty() && password.trim().isNotEmpty()) {
+                // 验证通过：清除错误状态并执行登录
+                showError = false
+                onLogin(UserInfo(username, userAvatar))
+            } else {
+                // 验证失败：设置错误状态，触发输入框变红
+                showError = true
+            }
+        },
         modifier = modifier
     )
 
@@ -206,17 +231,6 @@ fun LoginScreen(
  * - 支持垂直滚动，确保在小屏设备上也能正常显示
  * - 居中对齐，提供良好的视觉效果
  *
- * @param props 登录布局公共属性，包含：
- *   - username: 当前用户名输入值
- *   - password: 当前密码输入值
- *   - userAvatar: 当前选中的头像
- *   - showAvatarSelector: 头像选择器是否显示
- *   - onUsernameChange: 用户名输入变化回调
- *   - onPasswordChange: 密码输入变化回调
- *   - onAvatarSelect: 头像选择回调
- *   - onAvatarSelectorToggle: 头像选择器切换回调
- *   - onLogin: 登录按钮点击回调
- *   - modifier: Compose修饰符
  */
 @Composable
 fun PortraitLoginLayout(props: LoginLayoutProps) {
@@ -252,6 +266,10 @@ fun PortraitLoginLayout(props: LoginLayoutProps) {
             value = username,
             onValueChange = onUsernameChange,
             label = { Text("用户名") },
+            // isError参数控制输入框边框颜色：
+            // showError为true且输入为空时，边框变红（Material主题的error颜色）
+            // 其他情况下显示正常颜色
+            isError = showError && username.trim().isEmpty(),
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
         )
 
@@ -260,6 +278,8 @@ fun PortraitLoginLayout(props: LoginLayoutProps) {
             value = password,
             onValueChange = onPasswordChange,
             label = { Text("密码") },
+            // isError参数控制输入框边框颜色：同用户名输入框逻辑
+            isError = showError && password.trim().isEmpty(),
             visualTransformation = PasswordVisualTransformation(), // 密码掩码
             modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
         )
@@ -338,6 +358,8 @@ fun LandscapeLoginLayout(props: LoginLayoutProps) {
                 value = username,
                 onValueChange = onUsernameChange,
                 label = { Text("用户名") },
+                // 横屏布局中的错误状态显示逻辑与竖屏相同
+                isError = showError && username.trim().isEmpty(),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             )
 
@@ -346,6 +368,8 @@ fun LandscapeLoginLayout(props: LoginLayoutProps) {
                 value = password,
                 onValueChange = onPasswordChange,
                 label = { Text("密码") },
+                // 横屏布局中的密码框错误状态显示
+                isError = showError && password.trim().isEmpty(),
                 visualTransformation = PasswordVisualTransformation(), // 密码掩码
                 modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
             )
