@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +44,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.classwork2.ui.theme.Classwork2Theme
+import com.example.classwork2.database.AppDatabase
+import com.example.classwork2.database.repository.BookRepository
+import com.example.classwork2.database.converter.DataConverter
+import com.example.classwork2.database.DatabaseInitializer
 import kotlinx.coroutines.launch
 
 /**
@@ -68,6 +73,7 @@ data class Chapter(
  * @param author 作者
  * @param description 书籍描述
  * @param coverImageRes 封面图片资源ID，如果为null则使用默认封面
+ * @param lastUpdateTime 最后更新时间（毫秒时间戳）
  * @param chapters 章节列表
  */
 data class Book(
@@ -76,173 +82,10 @@ data class Book(
     val author: String,
     val description: String,
     val coverImageRes: Int? = null,
+    val lastUpdateTime: Long = System.currentTimeMillis(),
     val chapters: List<Chapter> = emptyList()
 )
 
-/**
- * 生成示例书籍数据
- */
-fun getSampleBooks(): List<Book> {
-    return listOf(
-        Book(
-            id = "1",
-            title = "魔法原理与实践",
-            author = "阿尔巴斯·邓布利多",
-            description = "这是一本全面介绍魔法基础理论和实践应用的经典教材。从基础魔法原理到高级咒语应用，为魔法学习者提供系统性的知识框架。",
-            coverImageRes = R.drawable.maodie,
-            chapters = listOf(
-                Chapter("1-1", "魔法的起源", 45),
-                Chapter("1-2", "基础魔法理论", 38),
-                Chapter("1-3", "魔法能量控制", 52),
-                Chapter("1-4", "咒语构造原理", 41),
-                Chapter("1-5", "实践练习指南", 35)
-            )
-        ),
-        Book(
-            id = "2",
-            title = "古代咒语大全",
-            author = "梅林",
-            description = "收录了数千年来最重要的古代咒语，包括失传的禁咒和保护咒语。每个咒语都有详细的施法说明和历史背景。",
-            chapters = listOf(
-                Chapter("2-1", "远古时代咒语", 65),
-                Chapter("2-2", "治疗系咒语", 48),
-                Chapter("2-3", "攻击系咒语", 72),
-                Chapter("2-4", "防护系咒语", 56),
-                Chapter("2-5", "禁咒警示录", 29)
-            )
-        ),
-        Book(
-            id = "3",
-            title = "炼金术基础",
-            author = "尼古拉·勒梅",
-            description = "炼金术的入门指南，从基础材料识别到复杂的炼制过程。包含详细的实验步骤和安全注意事项。",
-            chapters = listOf(
-                Chapter("3-1", "炼金术历史", 32),
-                Chapter("3-2", "基础材料学", 44),
-                Chapter("3-3", "设备与工具", 28),
-                Chapter("3-4", "初级炼制技巧", 58),
-                Chapter("3-5", "高级合成方法", 67)
-            )
-        ),
-        Book(
-            id = "4",
-            title = "魔法药剂学",
-            author = "西弗勒斯·斯内普",
-            description = "深入研究各种魔法药剂的配制方法，从简单的治疗药剂到复杂的变身药水，涵盖了药剂学的各个方面。",
-            chapters = listOf(
-                Chapter("4-1", "药剂学基础", 39),
-                Chapter("4-2", "常用药材识别", 53),
-                Chapter("4-3", "治疗类药剂", 45),
-                Chapter("4-4", "增益类药剂", 41),
-                Chapter("4-5", "危险药剂警告", 23)
-            )
-        ),
-        Book(
-            id = "5",
-            title = "占星术入门",
-            author = "西比尔·特里劳尼",
-            description = "通过观察星象来预知未来的古老艺术。本书详细介绍了星座知识、占卜技巧和预言解读方法。",
-            chapters = listOf(
-                Chapter("5-1", "星座与命运", 42),
-                Chapter("5-2", "占卜工具使用", 36),
-                Chapter("5-3", "预言解读技巧", 49),
-                Chapter("5-4", "时间魔法理论", 38),
-                Chapter("5-5", "实践占卜案例", 55)
-            )
-        ),
-        Book(
-            id = "6",
-            title = "魔法生物学",
-            author = "鲁伯·海格",
-            description = "全面介绍魔法世界中的各种神奇生物，包括它们的习性、栖息地和与人类的互动方式。",
-            chapters = listOf(
-                Chapter("6-1", "友善魔法生物", 47),
-                Chapter("6-2", "危险生物防范", 61),
-                Chapter("6-3", "生物栖息环境", 39),
-                Chapter("6-4", "生物保护法则", 33),
-                Chapter("6-5", "驯养技巧指南", 52)
-            )
-        ),
-        Book(
-            id = "7",
-            title = "时空魔法理论",
-            author = "赫敏·格兰杰",
-            description = "探索时间和空间魔法的深奥理论，包括时光旅行的原理、空间折叠技术和维度魔法的应用。",
-            chapters = listOf(
-                Chapter("7-1", "时间魔法原理", 58),
-                Chapter("7-2", "空间折叠技术", 63),
-                Chapter("7-3", "维度魔法入门", 71),
-                Chapter("7-4", "时空悖论研究", 45),
-                Chapter("7-5", "实践应用案例", 41)
-            )
-        ),
-        Book(
-            id = "8",
-            title = "元素魔法指南",
-            author = "阿凡达·安昂",
-            description = "系统介绍火、水、土、气四大元素魔法的修炼方法，从基础元素操控到高级元素融合技巧。",
-            chapters = listOf(
-                Chapter("8-1", "火元素魔法", 44),
-                Chapter("8-2", "水元素魔法", 46),
-                Chapter("8-3", "土元素魔法", 42),
-                Chapter("8-4", "气元素魔法", 48),
-                Chapter("8-5", "元素融合技巧", 59)
-            )
-        ),
-        Book(
-            id = "9",
-            title = "魔法防御术",
-            author = "詹姆斯·波特",
-            description = "专注于防御性魔法的学习，包括护盾咒语、反击技巧和对抗黑魔法的方法。",
-            chapters = listOf(
-                Chapter("9-1", "基础防护咒语", 37),
-                Chapter("9-2", "高级护盾技术", 51),
-                Chapter("9-3", "反击策略", 43),
-                Chapter("9-4", "黑魔法防御", 66),
-                Chapter("9-5", "团队防御战术", 34)
-            )
-        ),
-        Book(
-            id = "10",
-            title = "高级变形术",
-            author = "米勒娃·麦格",
-            description = "深入研究变形魔法的高级技巧，从简单的物体变形到复杂的生物变形，挑战魔法师的极限。",
-            chapters = listOf(
-                Chapter("10-1", "变形术基础理论", 49),
-                Chapter("10-2", "物体变形技巧", 55),
-                Chapter("10-3", "生物变形术", 68),
-                Chapter("10-4", "永久变形咒", 42),
-                Chapter("10-5", "变形术安全须知", 26)
-            )
-        ),
-        Book(
-            id = "11",
-            title = "魔法历史",
-            author = "宾斯教授",
-            description = "详细记录了魔法世界的发展历程，从古代魔法文明到现代魔法社会的演变过程。",
-            chapters = listOf(
-                Chapter("11-1", "古代魔法文明", 72),
-                Chapter("11-2", "中世纪魔法发展", 58),
-                Chapter("11-3", "现代魔法革命", 45),
-                Chapter("11-4", "著名魔法师传记", 63),
-                Chapter("11-5", "魔法社会制度", 41)
-            )
-        ),
-        Book(
-            id = "12",
-            title = "幻术与错觉",
-            author = "吉德罗·洛哈特",
-            description = "专门研究幻术魔法和错觉创造的技巧，包括视觉幻象、心理暗示和现实扭曲等高级幻术。",
-            chapters = listOf(
-                Chapter("12-1", "幻术基础原理", 38),
-                Chapter("12-2", "视觉幻象创造", 52),
-                Chapter("12-3", "心理暗示技巧", 44),
-                Chapter("12-4", "现实扭曲法术", 67),
-                Chapter("12-5", "幻术防护方法", 35)
-            )
-        )
-    )
-}
 
 /**
  * MainActivity - 应用程序的主Activity
@@ -266,6 +109,10 @@ class MainActivity : ComponentActivity() {
         
         // 初始化用户信息管理器
         userInfoManager = UserInfoManager(this)
+        
+        // 初始化数据库
+        val databaseInitializer = DatabaseInitializer(this)
+        databaseInitializer.initializeDatabase()
 
         // 设置Compose UI内容
         setContent {
@@ -524,8 +371,59 @@ fun BookDetailScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val books = remember { getSampleBooks() }
-    val book = books.find { it.id == bookId }
+    val context = LocalContext.current
+    val database = remember { AppDatabase.getDatabase(context) }
+    val bookRepository = remember { BookRepository(database.bookDao(), database.chapterDao()) }
+    
+    var book by remember { mutableStateOf<Book?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    
+    // 从数据库加载书籍和章节信息
+    LaunchedEffect(bookId) {
+        try {
+            val bookEntity = bookRepository.getBookById(bookId)
+            if (bookEntity != null) {
+                bookRepository.getChaptersByBookId(bookId).collect { chapterEntities ->
+                    val chapters = DataConverter.entitiesToChapters(chapterEntities)
+                    book = DataConverter.entityToBook(bookEntity, chapters)
+                    isLoading = false
+                }
+            } else {
+                isLoading = false
+            }
+        } catch (e: Exception) {
+            isLoading = false
+        }
+    }
+    
+    if (isLoading) {
+        // 加载状态
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("加载中...") },
+                    navigationIcon = {
+                        IconButton(onClick = onBackClick) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回"
+                            )
+                        }
+                    }
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        }
+        return
+    }
     
     if (book == null) {
         // 错误状态：书籍不存在
@@ -560,10 +458,11 @@ fun BookDetailScreen(
         return
     }
     
-    Scaffold(
+    book?.let { currentBook ->
+        Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(book.title) },
+                title = { Text(currentBook.title) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
@@ -595,10 +494,11 @@ fun BookDetailScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (book.coverImageRes != null) {
+                        val coverRes = currentBook.coverImageRes
+                        if (coverRes != null) {
                             Image(
-                                painter = painterResource(book.coverImageRes),
-                                contentDescription = book.title,
+                                painter = painterResource(coverRes),
+                                contentDescription = currentBook.title,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
                             )
@@ -624,7 +524,7 @@ fun BookDetailScreen(
             item {
                 // 书籍标题
                 Text(
-                    text = book.title,
+                    text = currentBook.title,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -635,7 +535,7 @@ fun BookDetailScreen(
             item {
                 // 作者信息
                 Text(
-                    text = "作者: ${book.author}",
+                    text = "作者: ${currentBook.author}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth()
@@ -661,7 +561,7 @@ fun BookDetailScreen(
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         Text(
-                            text = book.description,
+                            text = currentBook.description,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
@@ -681,7 +581,7 @@ fun BookDetailScreen(
                 )
             }
             
-            items(book.chapters) { chapter ->
+            items(currentBook.chapters) { chapter ->
                 // 章节项
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -712,6 +612,7 @@ fun BookDetailScreen(
                 }
             }
         }
+    }
     }
 }
 
@@ -870,15 +771,32 @@ fun MainContent(
     onBookClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 获取示例书籍数据
-    val books = remember { getSampleBooks() }
+    val context = LocalContext.current
+    val database = remember { AppDatabase.getDatabase(context) }
+    val bookRepository = remember { BookRepository(database.bookDao(), database.chapterDao()) }
+    
+    // 从数据库获取书籍数据
+    val bookEntities by bookRepository.getAllBooks().collectAsState(initial = emptyList())
+    val books = remember(bookEntities) {
+        DataConverter.entitiesToBooks(bookEntities)
+    }
     
     // 显示书籍列表
-    BooksList(
-        books = books,
-        onBookClick = onBookClick,
-        modifier = modifier
-    )
+    if (books.isEmpty()) {
+        // 显示加载状态或空状态
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+    } else {
+        BooksList(
+            books = books,
+            onBookClick = onBookClick,
+            modifier = modifier
+        )
+    }
 }
 
 /**

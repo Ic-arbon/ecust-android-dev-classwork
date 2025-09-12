@@ -56,6 +56,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew createDebugCoverageReport
 ```
 
+### 提交规范
+形如 feat(xxx): content，不要写ai合作者。
+
 ## 项目架构
 
 ### 目录结构
