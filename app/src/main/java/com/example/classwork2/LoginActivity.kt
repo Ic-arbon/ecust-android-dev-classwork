@@ -30,6 +30,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.classwork2.ui.theme.Classwork2Theme
@@ -261,6 +266,9 @@ fun PortraitLoginLayout(props: LoginLayoutProps) {
 
         Spacer(modifier = Modifier.height(32.dp)) // 头像和输入框之间的间距
 
+        // 获取焦点管理器，用于控制输入框焦点切换
+        val focusManager = LocalFocusManager.current
+        
         // 用户名输入框
         OutlinedTextField(
             value = username,
@@ -270,6 +278,12 @@ fun PortraitLoginLayout(props: LoginLayoutProps) {
             // showError为true且输入为空时，边框变红（Material主题的error颜色）
             // 其他情况下显示正常颜色
             isError = showError && username.trim().isEmpty(),
+            // 键盘配置：设置为下一个动作
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            // 键盘动作：回车键切换到下一个输入框（密码框）
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
         )
 
@@ -281,6 +295,16 @@ fun PortraitLoginLayout(props: LoginLayoutProps) {
             // isError参数控制输入框边框颜色：同用户名输入框逻辑
             isError = showError && password.trim().isEmpty(),
             visualTransformation = PasswordVisualTransformation(), // 密码掩码
+            // 键盘配置：设置为完成动作
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            // 键盘动作：回车键触发登录（仅在两个输入框都有内容时）
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    if (username.trim().isNotEmpty() && password.trim().isNotEmpty()) {
+                        onLogin()
+                    }
+                }
+            ),
             modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
         )
 
@@ -353,6 +377,9 @@ fun LandscapeLoginLayout(props: LoginLayoutProps) {
             horizontalAlignment = Alignment.CenterHorizontally, // 水平居中
             verticalArrangement = Arrangement.Center, // 垂直居中
         ) {
+            // 获取焦点管理器，用于控制输入框焦点切换
+            val focusManager = LocalFocusManager.current
+            
             // 用户名输入框
             OutlinedTextField(
                 value = username,
@@ -360,6 +387,12 @@ fun LandscapeLoginLayout(props: LoginLayoutProps) {
                 label = { Text("用户名") },
                 // 横屏布局中的错误状态显示逻辑与竖屏相同
                 isError = showError && username.trim().isEmpty(),
+                // 键盘配置：设置为下一个动作
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                // 键盘动作：回车键切换到下一个输入框（密码框）
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                ),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             )
 
@@ -371,6 +404,16 @@ fun LandscapeLoginLayout(props: LoginLayoutProps) {
                 // 横屏布局中的密码框错误状态显示
                 isError = showError && password.trim().isEmpty(),
                 visualTransformation = PasswordVisualTransformation(), // 密码掩码
+                // 键盘配置：设置为完成动作
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                // 键盘动作：回车键触发登录（仅在两个输入框都有内容时）
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (username.trim().isNotEmpty() && password.trim().isNotEmpty()) {
+                            onLogin()
+                        }
+                    }
+                ),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
             )
 
