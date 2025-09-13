@@ -48,7 +48,6 @@ import com.example.classwork2.ui.theme.Classwork2Theme
 import com.example.classwork2.database.AppDatabase
 import com.example.classwork2.database.repository.BookRepository
 import com.example.classwork2.database.converter.DataConverter
-import com.example.classwork2.database.DatabaseInitializer
 import com.example.classwork2.network.NetworkBookService
 import com.example.classwork2.network.ImportResult
 import kotlinx.coroutines.launch
@@ -121,9 +120,6 @@ class MainActivity : ComponentActivity() {
         // 初始化用户信息管理器
         userInfoManager = UserInfoManager(this)
         
-        // 初始化数据库
-        val databaseInitializer = DatabaseInitializer(this)
-        databaseInitializer.initializeDatabase()
 
         // 设置Compose UI内容
         setContent {
@@ -910,26 +906,65 @@ fun MainContent(
     val bookRepository = remember { BookRepository(database.bookDao(), database.chapterDao()) }
     
     // 从数据库获取书籍数据
-    val bookEntities by bookRepository.getAllBooks().collectAsState(initial = emptyList())
+    val bookEntities by bookRepository.getAllBooks().collectAsState(initial = null)
     val books = remember(bookEntities) {
-        DataConverter.entitiesToBooks(bookEntities)
+        if (bookEntities != null) {
+            DataConverter.entitiesToBooks(bookEntities!!)
+        } else {
+            null
+        }
     }
     
-    // 显示书籍列表
-    if (books.isEmpty()) {
-        // 显示加载状态或空状态
-        Box(
-            modifier = modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator()
+    when {
+        // 数据加载中
+        books == null -> {
+            Box(
+                modifier = modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
         }
-    } else {
-        BooksList(
-            books = books,
-            onBookClick = onBookClick,
-            modifier = modifier
-        )
+        // 无书籍，显示引导文字
+        books.isEmpty() -> {
+            Box(
+                modifier = modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "还没有任何书籍",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "点击右上角的 + 按钮开始导入书籍",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+        // 有书籍，显示列表
+        else -> {
+            BooksList(
+                books = books,
+                onBookClick = onBookClick,
+                modifier = modifier
+            )
+        }
     }
 }
 
