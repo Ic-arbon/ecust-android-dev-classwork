@@ -15,7 +15,8 @@ class NetworkBookService {
     
     init {
         // 注册默认支持的网站解析器
-        registerParser(SyosetuParser())
+        registerParser(NarouBookImporter()) // 新的API+解析器
+        registerParser(SyosetuParser()) // 保留旧的作为备用
         // 可以在这里添加更多网站的解析器
         // registerParser(KakuyomuParser())
         // registerParser(AlphapolisParser())
@@ -58,13 +59,34 @@ class NetworkBookService {
     suspend fun importBookFromUrl(url: String): ImportResult {
         return withContext(Dispatchers.IO) {
             try {
+                println("=== [NetworkBookService] 开始导入 ===")
+                println("输入URL: $url")
+                println("可用解析器: ${parsers.map { it.getSiteName() }}")
+                
                 // 查找能处理此URL的解析器
-                val parser = parsers.firstOrNull { it.canParse(url) }
-                    ?: return@withContext ImportResult.Error("不支持的网站: $url")
+                val parser = parsers.firstOrNull { 
+                    val canParse = it.canParse(url)
+                    println("解析器 ${it.getSiteName()}: ${if (canParse) "✅ 支持" else "❌ 不支持"}")
+                    canParse
+                }
+                
+                if (parser == null) {
+                    println("❌ 未找到支持的解析器")
+                    return@withContext ImportResult.Error("不支持的网站: $url")
+                }
+                
+                println("✅ 使用解析器: ${parser.getSiteName()}")
                 
                 // 解析书籍信息
+                println("开始调用解析器...")
                 val bookInfo = parser.parseBookInfo(url)
-                    ?: return@withContext ImportResult.Error("解析失败: 无法从页面获取书籍信息")
+                
+                if (bookInfo == null) {
+                    println("❌ 解析器返回空结果")
+                    return@withContext ImportResult.Error("解析失败: 无法从页面获取书籍信息")
+                }
+                
+                println("✅ 解析器返回结果: ${bookInfo.title}")
                 
                 // 验证必要信息
                 if (bookInfo.title.isBlank()) {
@@ -86,7 +108,34 @@ class NetworkBookService {
      * @return 预览结果
      */
     suspend fun previewBookFromUrl(url: String): ImportResult {
-        return importBookFromUrl(url)
+        return withContext(Dispatchers.IO) {
+            try {
+                // 查找能处理此URL的解析器
+                val parser = parsers.firstOrNull { it.canParse(url) }
+                    ?: return@withContext ImportResult.Error("不支持的网站: $url")
+                
+                // 如果是Narou导入器，使用快速预览模式
+                val bookInfo = if (parser is NarouBookImporter) {
+                    parser.previewBookInfo(url)
+                } else {
+                    parser.parseBookInfo(url)
+                }
+                
+                if (bookInfo == null) {
+                    return@withContext ImportResult.Error("解析失败: 无法从页面获取书籍信息")
+                }
+                
+                // 验证必要信息
+                if (bookInfo.title.isBlank()) {
+                    return@withContext ImportResult.Error("解析失败: 未找到书籍标题")
+                }
+                
+                ImportResult.Success(bookInfo, parser.getSiteName())
+                
+            } catch (e: Exception) {
+                ImportResult.Error("网络错误: ${e.message}")
+            }
+        }
     }
 }
 
