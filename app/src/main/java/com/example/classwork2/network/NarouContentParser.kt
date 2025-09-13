@@ -61,6 +61,11 @@ class NarouContentParser {
                 var currentPage = 1
                 var hasNextPage = true
                 
+                // 跨页面保持的状态变量
+                var lastVolumeTitle: String? = null
+                var currentVolumeOrder = 1
+                var lastSubChapterOrder = 1
+                
                 while (hasNextPage && currentPage <= MAX_PAGES) {
                     println("正在解析第 $currentPage 页...")
                     
@@ -82,8 +87,9 @@ class NarouContentParser {
                         break
                     }
                     
-                    // 解析当前页的章节
-                    val pageChapters = parsePageChapters(document, novelId, allChapters.size)
+                    // 解析当前页的章节，传入跨页面状态
+                    val parseResult = parsePageChapters(document, novelId, allChapters.size, lastVolumeTitle, currentVolumeOrder, lastSubChapterOrder)
+                    val pageChapters = parseResult.chapters
                     
                     if (pageChapters.isEmpty()) {
                         println("第 $currentPage 页没有找到章节，停止解析")
@@ -92,6 +98,11 @@ class NarouContentParser {
                     
                     allChapters.addAll(pageChapters)
                     println("第 $currentPage 页解析到 ${pageChapters.size} 个章节")
+                    
+                    // 更新跨页面状态
+                    lastVolumeTitle = parseResult.lastVolumeTitle
+                    currentVolumeOrder = parseResult.lastVolumeOrder
+                    lastSubChapterOrder = parseResult.lastSubChapterOrder
                     
                     // 检查是否有下一页
                     hasNextPage = hasNextPageLink(document)
@@ -115,27 +126,50 @@ class NarouContentParser {
     }
     
     /**
+     * 页面解析结果
+     */
+    private data class PageParseResult(
+        val chapters: List<ChapterInfo>,
+        val lastVolumeTitle: String?,
+        val lastVolumeOrder: Int,
+        val lastSubChapterOrder: Int
+    )
+    
+    /**
      * 解析单个页面的章节
      */
-    private fun parsePageChapters(document: Document, novelId: String, startOrder: Int): List<ChapterInfo> {
+    private fun parsePageChapters(
+        document: Document, 
+        novelId: String, 
+        startOrder: Int,
+        inheritedVolumeTitle: String? = null,
+        inheritedVolumeOrder: Int = 1,
+        inheritedSubChapterOrder: Int = 1
+    ): PageParseResult {
         val chapters = mutableListOf<ChapterInfo>()
+        
+        // 继承上一页的卷状态
+        var currentVolumeTitle: String? = inheritedVolumeTitle
+        var currentVolumeOrder = inheritedVolumeOrder
+        var subChapterOrder = inheritedSubChapterOrder
+        var globalOrder = startOrder + 1
         
         try {
             // 获取所有章节容器元素
             val eplistElements = document.select(".p-eplist > *")
             
-            var currentVolumeTitle: String? = null
-            var currentVolumeOrder = 1
-            var subChapterOrder = 1
-            var globalOrder = startOrder + 1
-            
             for (element in eplistElements) {
                 when {
                     // 检查是否是大章节标题
                     element.hasClass("p-eplist__chapter-title") -> {
-                        currentVolumeTitle = element.text().trim()
-                        subChapterOrder = 1 // 重置子章节计数
-                        println("发现大章节: $currentVolumeTitle")
+                        val newVolumeTitle = element.text().trim()
+                        // 只有在真正发现新的大章节时才更新
+                        if (newVolumeTitle != currentVolumeTitle) {
+                            currentVolumeTitle = newVolumeTitle
+                            currentVolumeOrder++
+                            subChapterOrder = 1 // 重置子章节计数
+                            println("发现新大章节: $currentVolumeTitle (卷序号: $currentVolumeOrder)")
+                        }
                     }
                     
                     // 检查是否是子话
@@ -187,13 +221,6 @@ class NarouContentParser {
                         }
                     }
                 }
-                
-                // 如果遇到新的大章节，增加卷序号
-                if (element.hasClass("p-eplist__chapter-title")) {
-                    if (currentVolumeTitle != null && chapters.isNotEmpty()) {
-                        currentVolumeOrder++
-                    }
-                }
             }
             
         } catch (e: Exception) {
@@ -201,7 +228,7 @@ class NarouContentParser {
             e.printStackTrace()
         }
         
-        return chapters
+        return PageParseResult(chapters, currentVolumeTitle, currentVolumeOrder, subChapterOrder)
     }
     
     /**

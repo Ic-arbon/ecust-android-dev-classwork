@@ -1121,44 +1121,59 @@ fun ImportBookScreen(
                 // 导入按钮
                 Button(
                     onClick = {
-                        previewBookInfo?.let { bookInfo ->
+                        if (url.isNotBlank()) {
                             scope.launch {
+                                isLoading = true
+                                errorMessage = null
+                                
                                 try {
-                                    // 转换为数据库实体并保存
-                                    val bookEntity = com.example.classwork2.database.entities.BookEntity(
-                                        id = bookInfo.sourceUrl.hashCode().toString(),
-                                        title = bookInfo.title,
-                                        author = bookInfo.author,
-                                        description = bookInfo.description,
-                                        lastUpdateTime = bookInfo.lastUpdateTime
-                                    )
-                                    
-                                    bookRepository.insertBook(bookEntity)
-                                    
-                                    // 保存章节信息，重新分配连续的章节序号
-                                    val sortedChapters = bookInfo.chapters.sortedBy { it.order }
-                                    sortedChapters.forEachIndexed { index, chapterInfo ->
-                                        val chapterEntity = com.example.classwork2.database.entities.ChapterEntity(
-                                            id = chapterInfo.url.hashCode().toString(),
-                                            bookId = bookEntity.id,
-                                            title = chapterInfo.title,
-                                            pageCount = 1, // 暂时设为1页，后续可实现章节内容获取后计算实际页数
-                                            volumeTitle = chapterInfo.volumeTitle,
-                                            volumeOrder = chapterInfo.volumeOrder,
-                                            subOrder = chapterInfo.subOrder,
-                                            chapterOrder = index + 1  // 使用从1开始的连续序号
-                                        )
-                                        database.chapterDao().insertChapter(chapterEntity)
+                                    // 使用完整导入流程，包含章节解析
+                                    when (val result = networkBookService.importBookFromUrl(url.trim())) {
+                                        is ImportResult.Success -> {
+                                            val bookInfo = result.bookInfo
+                                            
+                                            // 转换为数据库实体并保存
+                                            val bookEntity = com.example.classwork2.database.entities.BookEntity(
+                                                id = bookInfo.sourceUrl.hashCode().toString(),
+                                                title = bookInfo.title,
+                                                author = bookInfo.author,
+                                                description = bookInfo.description,
+                                                lastUpdateTime = bookInfo.lastUpdateTime
+                                            )
+                                            
+                                            bookRepository.insertBook(bookEntity)
+                                            
+                                            // 保存章节信息，重新分配连续的章节序号
+                                            val sortedChapters = bookInfo.chapters.sortedBy { it.order }
+                                            sortedChapters.forEachIndexed { index, chapterInfo ->
+                                                val chapterEntity = com.example.classwork2.database.entities.ChapterEntity(
+                                                    id = chapterInfo.url.hashCode().toString(),
+                                                    bookId = bookEntity.id,
+                                                    title = chapterInfo.title,
+                                                    pageCount = 1, // 暂时设为1页，后续可实现章节内容获取后计算实际页数
+                                                    volumeTitle = chapterInfo.volumeTitle,
+                                                    volumeOrder = chapterInfo.volumeOrder,
+                                                    subOrder = chapterInfo.subOrder,
+                                                    chapterOrder = index + 1  // 使用从1开始的连续序号
+                                                )
+                                                database.chapterDao().insertChapter(chapterEntity)
+                                            }
+                                            
+                                            onBookImported()
+                                        }
+                                        is ImportResult.Error -> {
+                                            errorMessage = result.message
+                                        }
                                     }
-                                    
-                                    onBookImported()
                                 } catch (e: Exception) {
                                     errorMessage = "导入失败: ${e.message}"
+                                } finally {
+                                    isLoading = false
                                 }
                             }
                         }
                     },
-                    enabled = previewBookInfo != null && !isLoading,
+                    enabled = url.isNotBlank() && !isLoading,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("导入")
