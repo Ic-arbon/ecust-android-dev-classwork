@@ -1259,7 +1259,7 @@ fun ImportBookScreen(
                             }
                         }
                     },
-                    enabled = url.isNotBlank() && !isLoading,
+                    enabled = url.isNotBlank(), // 移除 && !isLoading 条件，允许在导入时点击取消
                     modifier = Modifier.weight(1f)
                 ) {
                     if (isLoading && cancellationToken != null) {
