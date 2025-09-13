@@ -17,7 +17,7 @@ import com.example.classwork2.database.entities.UserEntity
  * 使用Room框架管理SQLite数据库
  * 包含用户、书籍和章节三个表
  * 
- * @version 2 数据库版本号（新增lastUpdateTime字段）
+ * @version 3 数据库版本号（新增章节层级结构支持）
  * @exportSchema false 不导出schema文件
  */
 @Database(
@@ -26,7 +26,7 @@ import com.example.classwork2.database.entities.UserEntity
         BookEntity::class,
         ChapterEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

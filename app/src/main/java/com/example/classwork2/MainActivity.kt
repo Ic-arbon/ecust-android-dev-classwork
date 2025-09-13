@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -48,6 +49,8 @@ import com.example.classwork2.database.AppDatabase
 import com.example.classwork2.database.repository.BookRepository
 import com.example.classwork2.database.converter.DataConverter
 import com.example.classwork2.database.DatabaseInitializer
+import com.example.classwork2.network.NetworkBookService
+import com.example.classwork2.network.ImportResult
 import kotlinx.coroutines.launch
 
 /**
@@ -56,11 +59,19 @@ import kotlinx.coroutines.launch
  * @param id 章节唯一标识符
  * @param title 章节标题
  * @param pageCount 页数
+ * @param volumeTitle 卷/大章节标题（可选）
+ * @param volumeOrder 卷序号（可选）
+ * @param subOrder 卷内序号（可选）
+ * @param chapterOrder 章节全局序号
  */
 data class Chapter(
     val id: String,
     val title: String,
-    val pageCount: Int
+    val pageCount: Int,
+    val volumeTitle: String? = null,
+    val volumeOrder: Int? = null,
+    val subOrder: Int? = null,
+    val chapterOrder: Int = 0
 )
 
 /**
@@ -119,16 +130,41 @@ class MainActivity : ComponentActivity() {
             // 应用自定义主题
             Classwork2Theme {
                 // 使用带抽屉导航栏的主界面
-                MainScreenWithDrawer(
-                    userInfoManager = userInfoManager,
-                    onLogout = {
-                        // 登出功能：清除用户信息并跳转到登录界面
-                        userInfoManager.clearUserInfo()
-                        val intent = Intent(this@MainActivity, LoginActivity::class.java)
-                        startActivity(intent)
-                        finish() // 关闭主界面，防止用户按返回键回到主界面
-                    },
-                )
+                // 创建导航控制器状态
+                val navController = rememberNavController()
+                
+                // 主界面导航宿主
+                NavHost(
+                    navController = navController,
+                    startDestination = "main",
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    composable("main") {
+                        MainScreenWithDrawer(
+                            userInfoManager = userInfoManager,
+                            onLogout = {
+                                // 登出功能：清除用户信息并跳转到登录界面
+                                userInfoManager.clearUserInfo()
+                                val intent = Intent(this@MainActivity, LoginActivity::class.java)
+                                startActivity(intent)
+                                finish() // 关闭主界面，防止用户按返回键回到主界面
+                            },
+                            onImportClick = {
+                                navController.navigate("import_book")
+                            }
+                        )
+                    }
+                    composable("import_book") {
+                        ImportBookScreen(
+                            onBackClick = {
+                                navController.popBackStack()
+                            },
+                            onBookImported = {
+                                navController.popBackStack()
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -151,6 +187,7 @@ class MainActivity : ComponentActivity() {
 fun MainScreenWithDrawer(
     userInfoManager: UserInfoManager,
     onLogout: () -> Unit,
+    onImportClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // 抽屉状态管理
@@ -186,7 +223,7 @@ fun MainScreenWithDrawer(
         // 主要内容区域
         Scaffold(
             topBar = {
-                // 顶部应用栏，包含汉堡菜单图标
+                // 顶部应用栏，包含汉堡菜单图标和导入按钮
                 TopAppBar(
                     title = { Text("魔法图书馆") },
                     navigationIcon = {
@@ -202,11 +239,24 @@ fun MainScreenWithDrawer(
                             )
                         }
                     },
+                    actions = {
+                        // 网络导入按钮
+                        IconButton(
+                            onClick = onImportClick
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "导入书籍"
+                            )
+                        }
+                    }
                 )
             },
         ) { paddingValues ->
             // 主要内容区域
-            AppNavigation(modifier = Modifier.fillMaxSize().padding(paddingValues))
+            AppNavigation(
+                modifier = Modifier.fillMaxSize().padding(paddingValues)
+            )
         }
     }
 }
@@ -581,33 +631,136 @@ fun BookDetailScreen(
                 )
             }
             
-            items(currentBook.chapters) { chapter ->
-                // 章节项
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+            // 按层级结构显示章节
+            val sortedChapters = currentBook.chapters.sortedWith(
+                compareBy<Chapter> { it.volumeOrder ?: 0 }.thenBy { it.chapterOrder }
+            )
+            val groupedChapters = sortedChapters.groupBy { it.volumeTitle }
+            
+            // 如果有层级结构，按卷显示
+            if (groupedChapters.keys.any { it != null }) {
+                // 按卷序号排序组
+                val sortedGroups = groupedChapters.toList().sortedBy { (volumeTitle, chapters) ->
+                    chapters.firstOrNull()?.volumeOrder ?: 0
+                }
+                sortedGroups.forEach { (volumeTitle, chaptersInVolume) ->
+                    // 显示卷标题（如果存在）
+                    if (volumeTitle != null) {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                        contentDescription = "卷",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = volumeTitle,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "${chaptersInVolume.size} 话",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 显示该卷下的章节
+                    items(chaptersInVolume.sortedBy { it.chapterOrder }) { chapter ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = if (volumeTitle != null) 16.dp else 0.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 章节序号和标题
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 如果有子序号，显示序号
+                                    if (chapter.subOrder != null && volumeTitle != null) {
+                                        Text(
+                                            text = "${chapter.subOrder}.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(end = 8.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = chapter.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Text(
+                                    text = "${chapter.pageCount} 页",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // 如果没有层级结构，按原方式显示
+                items(currentBook.chapters.sortedWith(compareBy<Chapter> { it.volumeOrder ?: 0 }.thenBy { it.chapterOrder })) { chapter ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Text(
-                            text = chapter.title,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = "${chapter.pageCount} 页",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = chapter.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "${chapter.pageCount} 页",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -846,6 +999,269 @@ fun MainScreenPreview() {
                 text = "用户: ${mockUserInfo.username}",
                 style = MaterialTheme.typography.bodyLarge
             )
+        }
+    }
+}
+
+/**
+ * 网络书籍导入界面
+ * 
+ * 提供从网络URL导入书籍信息的功能
+ * 
+ * @param onBackClick 返回按钮点击回调
+ * @param onBookImported 书籍导入成功回调
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ImportBookScreen(
+    onBackClick: () -> Unit,
+    onBookImported: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var url by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var previewBookInfo by remember { mutableStateOf<com.example.classwork2.network.NetworkBookInfo?>(null) }
+    
+    val context = LocalContext.current
+    val networkBookService = remember { NetworkBookService() }
+    val scope = rememberCoroutineScope()
+    val database = remember { AppDatabase.getDatabase(context) }
+    val bookRepository = remember { BookRepository(database.bookDao(), database.chapterDao()) }
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("导入网络书籍") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回"
+                        )
+                    }
+                }
+            )
+        },
+        modifier = modifier
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // 支持的网站提示
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "支持的网站",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val supportedSites = networkBookService.getSupportedSites()
+                    supportedSites.forEach { site ->
+                        Text(
+                            text = "• $site",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+            
+            // URL输入框
+            OutlinedTextField(
+                value = url,
+                onValueChange = { 
+                    url = it
+                    errorMessage = null
+                    previewBookInfo = null
+                },
+                label = { Text("书籍页面URL") },
+                placeholder = { Text("例如: https://ncode.syosetu.com/n3297eu/") },
+                isError = errorMessage != null,
+                supportingText = errorMessage?.let { { Text(it) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            
+            // 操作按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // 预览按钮
+                Button(
+                    onClick = {
+                        if (url.isBlank()) {
+                            errorMessage = "请输入URL"
+                            return@Button
+                        }
+                        
+                        scope.launch {
+                            isLoading = true
+                            errorMessage = null
+                            
+                            when (val result = networkBookService.previewBookFromUrl(url.trim())) {
+                                is ImportResult.Success -> {
+                                    previewBookInfo = result.bookInfo
+                                }
+                                is ImportResult.Error -> {
+                                    errorMessage = result.message
+                                }
+                            }
+                            isLoading = false
+                        }
+                    },
+                    enabled = !isLoading && url.isNotBlank(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("预览")
+                    }
+                }
+                
+                // 导入按钮
+                Button(
+                    onClick = {
+                        previewBookInfo?.let { bookInfo ->
+                            scope.launch {
+                                try {
+                                    // 转换为数据库实体并保存
+                                    val bookEntity = com.example.classwork2.database.entities.BookEntity(
+                                        id = bookInfo.sourceUrl.hashCode().toString(),
+                                        title = bookInfo.title,
+                                        author = bookInfo.author,
+                                        description = bookInfo.description,
+                                        lastUpdateTime = bookInfo.lastUpdateTime
+                                    )
+                                    
+                                    bookRepository.insertBook(bookEntity)
+                                    
+                                    // 保存章节信息，重新分配连续的章节序号
+                                    val sortedChapters = bookInfo.chapters.sortedBy { it.order }
+                                    sortedChapters.forEachIndexed { index, chapterInfo ->
+                                        val chapterEntity = com.example.classwork2.database.entities.ChapterEntity(
+                                            id = chapterInfo.url.hashCode().toString(),
+                                            bookId = bookEntity.id,
+                                            title = chapterInfo.title,
+                                            pageCount = 1, // 暂时设为1页，后续可实现章节内容获取后计算实际页数
+                                            volumeTitle = chapterInfo.volumeTitle,
+                                            volumeOrder = chapterInfo.volumeOrder,
+                                            subOrder = chapterInfo.subOrder,
+                                            chapterOrder = index + 1  // 使用从1开始的连续序号
+                                        )
+                                        database.chapterDao().insertChapter(chapterEntity)
+                                    }
+                                    
+                                    onBookImported()
+                                } catch (e: Exception) {
+                                    errorMessage = "导入失败: ${e.message}"
+                                }
+                            }
+                        }
+                    },
+                    enabled = previewBookInfo != null && !isLoading,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("导入")
+                }
+            }
+            
+            // 书籍预览信息
+            previewBookInfo?.let { bookInfo ->
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "书籍预览",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        Text(
+                            text = "标题: ${bookInfo.title}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        Text(
+                            text = "作者: ${bookInfo.author}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        
+                        Text(
+                            text = "状态: ${bookInfo.status}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        
+                        if (bookInfo.chapters.isNotEmpty()) {
+                            Text(
+                                text = "章节数: ${bookInfo.chapters.size}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            
+                            // 显示卷信息
+                            val volumeInfo = bookInfo.chapters.groupBy { it.volumeTitle }
+                            if (volumeInfo.keys.filterNotNull().isNotEmpty()) {
+                                Text(
+                                    text = "分卷: ${volumeInfo.keys.filterNotNull().size} 卷",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                
+                                // 显示每卷的章节数
+                                volumeInfo.forEach { (volumeTitle, chapters) ->
+                                    if (volumeTitle != null) {
+                                        Text(
+                                            text = "├─ $volumeTitle: ${chapters.size} 话",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(start = 16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (bookInfo.tags.isNotEmpty()) {
+                            Text(
+                                text = "标签: ${bookInfo.tags.joinToString(", ")}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        
+                        Text(
+                            text = "简介:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = bookInfo.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

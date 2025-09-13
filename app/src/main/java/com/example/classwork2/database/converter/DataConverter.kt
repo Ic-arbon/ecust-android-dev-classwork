@@ -91,7 +91,11 @@ object DataConverter {
             id = chapter.id,
             bookId = bookId,
             title = chapter.title,
-            pageCount = chapter.pageCount
+            pageCount = chapter.pageCount,
+            volumeTitle = chapter.volumeTitle,
+            volumeOrder = chapter.volumeOrder,
+            subOrder = chapter.subOrder,
+            chapterOrder = chapter.chapterOrder
         )
     }
     
@@ -102,7 +106,11 @@ object DataConverter {
         return Chapter(
             id = entity.id,
             title = entity.title,
-            pageCount = entity.pageCount
+            pageCount = entity.pageCount,
+            volumeTitle = entity.volumeTitle,
+            volumeOrder = entity.volumeOrder,
+            subOrder = entity.subOrder,
+            chapterOrder = entity.chapterOrder
         )
     }
     
