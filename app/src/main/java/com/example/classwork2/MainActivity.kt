@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.animation.animateContentSize
@@ -633,14 +635,48 @@ fun BookDetailScreen(
             }
             
             item {
-                // 章节目录标题
-                Text(
-                    text = "章节目录",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                // 章节目录标题与全局控制按钮
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "章节目录",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    
+                    // 一键展开/折叠所有章节按钮
+                    val allVolumeTitles = currentBook.chapters
+                        .mapNotNull { it.volumeTitle }
+                        .distinct()
+                    val allExpanded = allVolumeTitles.all { expandedVolumes.contains(it) }
+                    
+                    IconButton(
+                        onClick = {
+                            expandedVolumes = if (allExpanded) {
+                                // 全部折叠
+                                setOf()
+                            } else {
+                                // 全部展开
+                                allVolumeTitles.toSet()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (allExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
+                            contentDescription = if (allExpanded) "折叠所有章节" else "展开所有章节",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.animateContentSize(
+                                animationSpec = tween(200)
+                            )
+                        )
+                    }
+                }
             }
             
             // 按层级结构显示章节
