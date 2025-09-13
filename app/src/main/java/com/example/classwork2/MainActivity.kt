@@ -24,13 +24,19 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -428,6 +434,9 @@ fun BookDetailScreen(
     var book by remember { mutableStateOf<Book?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     
+    // 折叠状态管理：使用卷标题作为键，存储每个卷的展开/折叠状态
+    var expandedVolumes by remember { mutableStateOf(setOf<String>()) }
+    
     // 从数据库加载书籍和章节信息
     LaunchedEffect(bookId) {
         try {
@@ -527,7 +536,10 @@ fun BookDetailScreen(
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
-                .padding(paddingValues),
+                .padding(paddingValues)
+                .animateContentSize(
+                    animationSpec = tween(300)
+                ),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -647,10 +659,24 @@ fun BookDetailScreen(
                     // 显示卷标题（如果存在）
                     if (volumeTitle != null) {
                         item {
+                            val isExpanded = expandedVolumes.contains(volumeTitle)
+                            val rotationAngle by animateFloatAsState(
+                                targetValue = if (isExpanded) 180f else 0f,
+                                animationSpec = tween(300),
+                                label = "arrow_rotation"
+                            )
+                            
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 8.dp),
+                                    .padding(top = 8.dp)
+                                    .clickable {
+                                        expandedVolumes = if (isExpanded) {
+                                            expandedVolumes - volumeTitle
+                                        } else {
+                                            expandedVolumes + volumeTitle
+                                        }
+                                    },
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer
                                 )
@@ -680,13 +706,23 @@ fun BookDetailScreen(
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.ExpandMore,
+                                        contentDescription = if (isExpanded) "收起" else "展开",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .rotate(rotationAngle)
+                                    )
                                 }
                             }
                         }
                     }
                     
-                    // 显示该卷下的章节
-                    items(chaptersInVolume.sortedBy { it.chapterOrder }) { chapter ->
+                    // 只在展开时显示该卷下的章节
+                    if (volumeTitle == null || expandedVolumes.contains(volumeTitle)) {
+                        items(chaptersInVolume.sortedBy { it.chapterOrder }) { chapter ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -718,6 +754,7 @@ fun BookDetailScreen(
                                 )
                             }
                         }
+                    }
                     }
                 }
             } else {
