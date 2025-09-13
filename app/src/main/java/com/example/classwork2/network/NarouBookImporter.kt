@@ -29,21 +29,44 @@ class NarouBookImporter : BookSiteParser {
     override fun getSiteName(): String = "小説家になろう (API + 解析)"
     
     override suspend fun parseBookInfo(url: String): NetworkBookInfo? {
+        return parseBookInfo(url, null, null)
+    }
+    
+    /**
+     * 带进度回调的解析方法
+     */
+    suspend fun parseBookInfo(
+        url: String,
+        progressCallback: ImportProgressCallback?,
+        cancellationToken: CancellationToken?
+    ): NetworkBookInfo? {
         return withContext(Dispatchers.IO) {
             try {
                 println("=== [NarouBookImporter] 开始导入 ===")
                 println("输入URL: $url")
                 println("检查URL是否支持: ${canParse(url)}")
                 
+                progressCallback?.onProgressUpdate(
+                    ImportProgress(ImportStage.PREPARING, 1, 3, "准备获取API数据...")
+                )
+                
+                // 检查取消状态
+                if (cancellationToken?.isCancelled == true) {
+                    progressCallback?.onError("用户取消操作")
+                    return@withContext null
+                }
+                
                 // 第一步：使用API获取准确的元数据
                 println("=== [步骤1] 调用API获取元数据 ===")
+                progressCallback?.onProgressUpdate(
+                    ImportProgress(ImportStage.PREPARING, 2, 3, "正在调用API获取元数据...")
+                )
+                
                 val apiInfo = apiService.getNovelInfoByUrl(url)
                 if (apiInfo == null) {
-                    println("❌ API获取信息失败，可能原因:")
-                    println("   1. URL格式不正确或无法提取ncode")
-                    println("   2. 网络连接问题")
-                    println("   3. API服务异常")
-                    println("   4. 该小说不存在或已删除")
+                    val errorMsg = "API获取信息失败，可能原因：URL格式不正确、网络连接问题、API服务异常或该小说不存在"
+                    println("❌ $errorMsg")
+                    progressCallback?.onError(errorMsg)
                     return@withContext null
                 }
                 
@@ -55,18 +78,36 @@ class NarouBookImporter : BookSiteParser {
                 println("   ncode: ${apiInfo.ncode}")
                 println("   最后更新: ${apiInfo.lastUpdatedAt}")
                 
-                // 第二步：解析完整的章节列表（支持分页）
+                // 第二步：解析完整的章节列表（支持分页和进度回调）
                 val chapters = if (apiInfo.totalEpisodes > 0) {
                     println("开始解析章节列表...")
-                    contentParser.parseChapterList(url)
+                    progressCallback?.onProgressUpdate(
+                        ImportProgress(ImportStage.PREPARING, 3, 3, "开始解析章节列表...")
+                    )
+                    
+                    // 使用带进度回调的新解析器
+                    contentParser.parseChapterList(url, progressCallback, cancellationToken)
                 } else {
                     println("短篇小说，无章节列表")
+                    progressCallback?.onProgressUpdate(
+                        ImportProgress(ImportStage.COMPLETED, 1, 1, "短篇小说，无章节列表")
+                    )
                     emptyList()
+                }
+                
+                // 检查是否被取消
+                if (cancellationToken?.isCancelled == true) {
+                    progressCallback?.onError("用户取消操作")
+                    return@withContext null
                 }
                 
                 println("章节解析完成，共 ${chapters.size} 章")
                 
                 // 第三步：整合数据
+                progressCallback?.onProgressUpdate(
+                    ImportProgress(ImportStage.SAVING, 1, 1, "整合书籍数据...")
+                )
+                
                 val networkBookInfo = NetworkBookInfo(
                     title = apiInfo.title,
                     author = apiInfo.author,
@@ -87,9 +128,11 @@ class NarouBookImporter : BookSiteParser {
                 return@withContext networkBookInfo
                 
             } catch (e: Exception) {
-                println("❌ [错误] 导入失败: ${e.message}")
+                val errorMsg = "导入失败: ${e.message}"
+                println("❌ [错误] $errorMsg")
                 println("   异常类型: ${e::class.java.simpleName}")
                 e.printStackTrace()
+                progressCallback?.onError(errorMsg)
                 return@withContext null
             }
         }
@@ -115,19 +158,33 @@ class NarouBookImporter : BookSiteParser {
      * 预览书籍信息（仅使用API，不解析章节）
      * 用于快速预览，避免长时间的章节解析
      */
-    suspend fun previewBookInfo(url: String): NetworkBookInfo? {
+    suspend fun previewBookInfo(
+        url: String,
+        progressCallback: ImportProgressCallback? = null
+    ): NetworkBookInfo? {
         return withContext(Dispatchers.IO) {
             try {
                 println("=== [NarouBookImporter] 快速预览模式 ===")
                 println("输入URL: $url")
                 
+                progressCallback?.onProgressUpdate(
+                    ImportProgress(ImportStage.PREPARING, 1, 2, "正在获取书籍基本信息...")
+                )
+                
                 val apiInfo = apiService.getNovelInfoByUrl(url)
                 if (apiInfo == null) {
-                    println("❌ 预览失败: API返回空数据")
+                    val errorMsg = "预览失败: API返回空数据"
+                    println("❌ $errorMsg")
+                    progressCallback?.onError(errorMsg)
                     return@withContext null
                 }
                 
                 println("✅ 预览成功: ${apiInfo.title}")
+                
+                progressCallback?.onProgressUpdate(
+                    ImportProgress(ImportStage.COMPLETED, 2, 2, "预览完成")
+                )
+                progressCallback?.onComplete()
                 
                 NetworkBookInfo(
                     title = apiInfo.title,
@@ -140,8 +197,10 @@ class NarouBookImporter : BookSiteParser {
                     lastUpdateTime = parseApiDate(apiInfo.lastUpdatedAt)
                 )
             } catch (e: Exception) {
-                println("❌ [错误] 预览失败: ${e.message}")
+                val errorMsg = "预览失败: ${e.message}"
+                println("❌ [错误] $errorMsg")
                 e.printStackTrace()
+                progressCallback?.onError(errorMsg)
                 null
             }
         }

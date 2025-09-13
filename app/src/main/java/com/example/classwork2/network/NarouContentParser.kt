@@ -5,12 +5,15 @@ import org.jsoup.nodes.Document
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * 小説家になろう 内容解析器
  * 
  * 专门用于解析小説家になろう网站的章节内容和目录信息
  * 支持分页遍历，确保获取完整的章节列表
+ * 新版本支持页面缓存和进度回调
  */
 class NarouContentParser {
     
@@ -38,15 +41,19 @@ class NarouContentParser {
     fun getSiteName(): String = SITE_NAME
     
     /**
-     * 解析章节列表（支持分页）
+     * 解析章节列表（支持分页和进度回调）
      * 
      * @param baseUrl 小说的基础URL
+     * @param progressCallback 进度回调（可选）
+     * @param cancellationToken 取消令牌（可选）
      * @return 完整的章节列表
      */
-    suspend fun parseChapterList(baseUrl: String): List<ChapterInfo> {
+    suspend fun parseChapterList(
+        baseUrl: String,
+        progressCallback: ImportProgressCallback? = null,
+        cancellationToken: CancellationToken? = null
+    ): List<ChapterInfo> {
         return withContext(Dispatchers.IO) {
-            val allChapters = mutableListOf<ChapterInfo>()
-            
             try {
                 // 确保URL格式正确
                 val novelUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
@@ -54,75 +61,175 @@ class NarouContentParser {
                 // 提取小说ID
                 val novelId = extractNovelIdFromUrl(novelUrl)
                 if (novelId.isEmpty()) {
-                    println("无法提取小说ID from $novelUrl")
-                    return@withContext allChapters
+                    progressCallback?.onError("无法提取小说ID from $novelUrl")
+                    return@withContext emptyList()
                 }
                 
-                var currentPage = 1
-                var hasNextPage = true
+                progressCallback?.onProgressUpdate(
+                    ImportProgress(ImportStage.PREPARING, 1, 2, "准备下载章节页面...")
+                )
                 
-                // 跨页面保持的状态变量
-                var lastVolumeTitle: String? = null
-                var currentVolumeOrder = 1
-                var lastSubChapterOrder = 1
+                // 第一阶段：下载所有页面到缓存
+                val pageCache = downloadAllPages(novelUrl, progressCallback, cancellationToken)
+                    ?: return@withContext emptyList()
                 
-                while (hasNextPage && currentPage <= MAX_PAGES) {
-                    println("正在解析第 $currentPage 页...")
-                    
-                    // 构建当前页的URL
-                    val pageUrl = if (currentPage == 1) {
-                        novelUrl
-                    } else {
-                        "${novelUrl}?p=$currentPage"
-                    }
-                    
-                    // 获取页面内容
-                    val document = try {
-                        Jsoup.connect(pageUrl)
-                            .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                            .timeout(15000)
-                            .get()
-                    } catch (e: Exception) {
-                        println("获取页面失败: $pageUrl, 错误: ${e.message}")
-                        break
-                    }
-                    
-                    // 解析当前页的章节，传入跨页面状态
-                    val parseResult = parsePageChapters(document, novelId, allChapters.size, lastVolumeTitle, currentVolumeOrder, lastSubChapterOrder)
+                // 第二阶段：从缓存解析所有章节
+                val chapters = parseChaptersFromCache(pageCache, novelId, progressCallback, cancellationToken)
+                
+                progressCallback?.onProgressUpdate(
+                    ImportProgress(ImportStage.COMPLETED, 1, 1, "解析完成，共 ${chapters.size} 个章节")
+                )
+                progressCallback?.onComplete()
+                
+                return@withContext chapters.sortedBy { it.order }
+                
+            } catch (e: Exception) {
+                val errorMsg = "解析章节列表失败: ${e.message}"
+                println(errorMsg)
+                e.printStackTrace()
+                progressCallback?.onError(errorMsg)
+                return@withContext emptyList()
+            }
+        }
+    }
+    
+    /**
+     * 向后兼容的解析方法（无进度回调）
+     * 
+     * @param baseUrl 小说的基础URL
+     * @return 完整的章节列表
+     */
+    suspend fun parseChapterList(baseUrl: String): List<ChapterInfo> {
+        return parseChapterList(baseUrl, null, null)
+    }
+    
+    /**
+     * 下载所有页面到缓存
+     */
+    private suspend fun downloadAllPages(
+        novelUrl: String,
+        progressCallback: ImportProgressCallback?,
+        cancellationToken: CancellationToken?
+    ): PageCache? {
+        val pageCache = PageCache()
+        var currentPage = 1
+        var hasNextPage = true
+        val totalPagesEstimate = mutableListOf<String>() // 用于估算总页数
+        
+        while (hasNextPage && currentPage <= MAX_PAGES) {
+            // 检查取消状态
+            if (cancellationToken?.isCancelled == true) {
+                progressCallback?.onError("用户取消操作")
+                return null
+            }
+            
+            currentCoroutineContext().ensureActive() // 检查协程取消状态
+            
+            val pageUrl = if (currentPage == 1) {
+                novelUrl
+            } else {
+                "${novelUrl}?p=$currentPage"
+            }
+            
+            progressCallback?.onProgressUpdate(
+                ImportProgress(
+                    ImportStage.DOWNLOADING,
+                    currentPage,
+                    maxOf(currentPage + 1, totalPagesEstimate.size),
+                    "正在下载第 $currentPage 页..."
+                )
+            )
+            
+            try {
+                val document = Jsoup.connect(pageUrl)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .timeout(15000)
+                    .get()
+                
+                // 缓存页面
+                pageCache.put(pageUrl, document)
+                println("✅ 缓存页面: $pageUrl")
+                
+                // 检查是否有下一页
+                hasNextPage = hasNextPageLink(document)
+                
+                if (hasNextPage) {
+                    currentPage++
+                    delay(REQUEST_DELAY_MS) // 请求间隔
+                } else {
+                    println("✅ 下载完成，共 $currentPage 页")
+                }
+                
+            } catch (e: Exception) {
+                val errorMsg = "下载页面失败: $pageUrl, 错误: ${e.message}"
+                println("❌ $errorMsg")
+                progressCallback?.onError(errorMsg)
+                return null
+            }
+        }
+        
+        return pageCache
+    }
+    
+    /**
+     * 从缓存解析所有章节
+     */
+    private suspend fun parseChaptersFromCache(
+        pageCache: PageCache,
+        novelId: String,
+        progressCallback: ImportProgressCallback?,
+        cancellationToken: CancellationToken?
+    ): List<ChapterInfo> {
+        val allChapters = mutableListOf<ChapterInfo>()
+        val cachedUrls = pageCache.getCachedUrls().sorted()
+        
+        // 跨页面保持的状态变量
+        var lastVolumeTitle: String? = null
+        var currentVolumeOrder = 1
+        var lastSubChapterOrder = 1
+        
+        cachedUrls.forEachIndexed { index, pageUrl ->
+            // 检查取消状态
+            if (cancellationToken?.isCancelled == true) {
+                progressCallback?.onError("用户取消操作")
+                return emptyList()
+            }
+            
+            currentCoroutineContext().ensureActive()
+            
+            progressCallback?.onProgressUpdate(
+                ImportProgress(
+                    ImportStage.PARSING,
+                    index + 1,
+                    cachedUrls.size,
+                    "正在解析第 ${index + 1} 页章节..."
+                )
+            )
+            
+            val document = pageCache.get(pageUrl)
+            if (document != null) {
+                try {
+                    val parseResult = parsePageChapters(
+                        document, novelId, allChapters.size,
+                        lastVolumeTitle, currentVolumeOrder, lastSubChapterOrder
+                    )
                     val pageChapters = parseResult.chapters
                     
-                    if (pageChapters.isEmpty()) {
-                        println("第 $currentPage 页没有找到章节，停止解析")
-                        break
-                    }
-                    
                     allChapters.addAll(pageChapters)
-                    println("第 $currentPage 页解析到 ${pageChapters.size} 个章节")
+                    println("✅ 页面 ${index + 1} 解析到 ${pageChapters.size} 个章节")
                     
                     // 更新跨页面状态
                     lastVolumeTitle = parseResult.lastVolumeTitle
                     currentVolumeOrder = parseResult.lastVolumeOrder
                     lastSubChapterOrder = parseResult.lastSubChapterOrder
                     
-                    // 检查是否有下一页
-                    hasNextPage = hasNextPageLink(document)
-                    
-                    if (hasNextPage) {
-                        currentPage++
-                        // 添加请求间隔
-                        delay(REQUEST_DELAY_MS)
-                    }
+                } catch (e: Exception) {
+                    println("❌ 解析页面失败: $pageUrl, ${e.message}")
                 }
-                
-                println("总共解析到 ${allChapters.size} 个章节，共 $currentPage 页")
-                
-            } catch (e: Exception) {
-                println("解析章节列表失败: ${e.message}")
-                e.printStackTrace()
             }
-            
-            return@withContext allChapters.sortedBy { it.order }
         }
+        
+        return allChapters
     }
     
     /**

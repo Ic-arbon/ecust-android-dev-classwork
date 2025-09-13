@@ -55,6 +55,22 @@ class NetworkBookService {
      * @return 导入结果，包含书籍信息和导入状态
      */
     suspend fun importBookFromUrl(url: String): ImportResult {
+        return importBookFromUrl(url, null, null)
+    }
+    
+    /**
+     * 带进度回调的导入方法
+     *
+     * @param url 书籍页面URL
+     * @param progressCallback 进度回调
+     * @param cancellationToken 取消令牌
+     * @return 导入结果
+     */
+    suspend fun importBookFromUrl(
+        url: String,
+        progressCallback: ImportProgressCallback?,
+        cancellationToken: CancellationToken?
+    ): ImportResult {
         return withContext(Dispatchers.IO) {
             try {
                 println("=== [NetworkBookService] 开始导入 ===")
@@ -78,7 +94,12 @@ class NetworkBookService {
 
                 // 解析书籍信息
                 println("开始调用解析器...")
-                val bookInfo = parser.parseBookInfo(url)
+                val bookInfo = if (parser is NarouBookImporter) {
+                    // 使用带进度回调的方法
+                    parser.parseBookInfo(url, progressCallback, cancellationToken)
+                } else {
+                    parser.parseBookInfo(url)
+                }
 
                 if (bookInfo == null) {
                     println("❌ 解析器返回空结果")
@@ -106,6 +127,20 @@ class NetworkBookService {
      * @return 预览结果
      */
     suspend fun previewBookFromUrl(url: String): ImportResult {
+        return previewBookFromUrl(url, null)
+    }
+    
+    /**
+     * 带进度回调的预览方法
+     *
+     * @param url 书籍页面URL
+     * @param progressCallback 进度回调
+     * @return 预览结果
+     */
+    suspend fun previewBookFromUrl(
+        url: String,
+        progressCallback: ImportProgressCallback?
+    ): ImportResult {
         return withContext(Dispatchers.IO) {
             try {
                 // 查找能处理此URL的解析器
@@ -114,12 +149,11 @@ class NetworkBookService {
                                 ?: return@withContext ImportResult.Error("不支持的网站: $url")
 
                 // 如果是Narou导入器，使用快速预览模式
-                val bookInfo =
-                        if (parser is NarouBookImporter) {
-                            parser.previewBookInfo(url)
-                        } else {
-                            parser.parseBookInfo(url)
-                        }
+                val bookInfo = if (parser is NarouBookImporter) {
+                    parser.previewBookInfo(url, progressCallback)
+                } else {
+                    parser.parseBookInfo(url)
+                }
 
                 if (bookInfo == null) {
                     return@withContext ImportResult.Error("解析失败: 无法从页面获取书籍信息")

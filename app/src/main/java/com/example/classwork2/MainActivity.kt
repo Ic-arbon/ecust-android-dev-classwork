@@ -50,6 +50,10 @@ import com.example.classwork2.database.repository.BookRepository
 import com.example.classwork2.database.converter.DataConverter
 import com.example.classwork2.network.NetworkBookService
 import com.example.classwork2.network.ImportResult
+import com.example.classwork2.network.ImportProgress
+import com.example.classwork2.network.ImportProgressCallback
+import com.example.classwork2.network.ImportStage
+import com.example.classwork2.network.SimpleCancellationToken
 import kotlinx.coroutines.launch
 
 /**
@@ -1039,6 +1043,10 @@ fun ImportBookScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var previewBookInfo by remember { mutableStateOf<com.example.classwork2.network.NetworkBookInfo?>(null) }
     
+    // 进度相关状态
+    var importProgress by remember { mutableStateOf<ImportProgress?>(null) }
+    var cancellationToken by remember { mutableStateOf<SimpleCancellationToken?>(null) }
+    
     val context = LocalContext.current
     val networkBookService = remember { NetworkBookService() }
     val scope = rememberCoroutineScope()
@@ -1128,8 +1136,25 @@ fun ImportBookScreen(
                         scope.launch {
                             isLoading = true
                             errorMessage = null
+                            importProgress = null
                             
-                            when (val result = networkBookService.previewBookFromUrl(url.trim())) {
+                            // 创建进度回调
+                            val progressCallback = object : ImportProgressCallback {
+                                override fun onProgressUpdate(progress: ImportProgress) {
+                                    importProgress = progress
+                                }
+                                
+                                override fun onError(error: String) {
+                                    errorMessage = error
+                                    importProgress = null
+                                }
+                                
+                                override fun onComplete() {
+                                    importProgress = null
+                                }
+                            }
+                            
+                            when (val result = networkBookService.previewBookFromUrl(url.trim(), progressCallback)) {
                                 is ImportResult.Success -> {
                                     previewBookInfo = result.bookInfo
                                 }
@@ -1156,14 +1181,38 @@ fun ImportBookScreen(
                 // 导入按钮
                 Button(
                     onClick = {
-                        if (url.isNotBlank()) {
+                        if (isLoading && cancellationToken != null) {
+                            // 取消导入
+                            cancellationToken?.cancel()
+                        } else if (url.isNotBlank()) {
                             scope.launch {
                                 isLoading = true
                                 errorMessage = null
+                                importProgress = null
+                                
+                                // 创建取消令牌
+                                val token = SimpleCancellationToken()
+                                cancellationToken = token
+                                
+                                // 创建进度回调
+                                val progressCallback = object : ImportProgressCallback {
+                                    override fun onProgressUpdate(progress: ImportProgress) {
+                                        importProgress = progress
+                                    }
+                                    
+                                    override fun onError(error: String) {
+                                        errorMessage = error
+                                        importProgress = null
+                                    }
+                                    
+                                    override fun onComplete() {
+                                        importProgress = null
+                                    }
+                                }
                                 
                                 try {
-                                    // 使用完整导入流程，包含章节解析
-                                    when (val result = networkBookService.importBookFromUrl(url.trim())) {
+                                    // 使用完整导入流程，包含章节解析和进度回调
+                                    when (val result = networkBookService.importBookFromUrl(url.trim(), progressCallback, token)) {
                                         is ImportResult.Success -> {
                                             val bookInfo = result.bookInfo
                                             
@@ -1204,6 +1253,8 @@ fun ImportBookScreen(
                                     errorMessage = "导入失败: ${e.message}"
                                 } finally {
                                     isLoading = false
+                                    importProgress = null
+                                    cancellationToken = null
                                 }
                             }
                         }
@@ -1211,7 +1262,68 @@ fun ImportBookScreen(
                     enabled = url.isNotBlank() && !isLoading,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("导入")
+                    if (isLoading && cancellationToken != null) {
+                        Text("取消")
+                    } else {
+                        Text("导入")
+                    }
+                }
+            }
+            
+            // 进度显示
+            importProgress?.let { progress ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "导入进度",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        // 阶段显示
+                        Text(
+                            text = "当前阶段: ${progress.stage.displayName}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        
+                        // 进度条
+                        LinearProgressIndicator(
+                            progress = { progress.progress },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        
+                        // 进度信息
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${progress.currentStep} / ${progress.totalSteps}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                text = "${progress.percentage}%",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        
+                        // 详细信息
+                        if (progress.message.isNotEmpty()) {
+                            Text(
+                                text = progress.message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
             
