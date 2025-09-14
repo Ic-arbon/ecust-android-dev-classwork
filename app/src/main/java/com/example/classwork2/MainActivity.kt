@@ -446,11 +446,32 @@ fun BookDetailScreen(
     var showFullscreenImage by remember { mutableStateOf(false) }
     var showCoverEditDialog by remember { mutableStateOf(false) }
     
+    // 页面是否处于活跃状态，用于防止在退出时触发弹窗
+    var isPageActive by remember { mutableStateOf(true) }
+    
+    // 增强的返回处理函数
+    val handleBackClick: () -> Unit = {
+        // 立即标记页面为非活跃状态
+        isPageActive = false
+        // 立即关闭所有弹窗
+        showFullscreenImage = false
+        showCoverEditDialog = false
+        // 执行返回操作
+        onBackClick()
+    }
+    
     // 折叠状态管理：使用卷标题作为键，存储每个卷的展开/折叠状态
     var expandedVolumes by remember { mutableStateOf(setOf<String>()) }
     
-    // 从数据库加载书籍和章节信息
+    // 监听bookId变化，重置所有状态
     LaunchedEffect(bookId) {
+        // 重置页面状态
+        isPageActive = true
+        showFullscreenImage = false
+        showCoverEditDialog = false
+        isLoading = true
+        book = null
+        
         try {
             val bookEntity = bookRepository.getBookById(bookId)
             if (bookEntity != null) {
@@ -467,6 +488,14 @@ fun BookDetailScreen(
         }
     }
     
+    // 监听页面生命周期，确保在页面不活跃时关闭所有弹窗
+    LaunchedEffect(isPageActive) {
+        if (!isPageActive) {
+            showFullscreenImage = false
+            showCoverEditDialog = false
+        }
+    }
+    
     if (isLoading) {
         // 加载状态
         Scaffold(
@@ -474,7 +503,7 @@ fun BookDetailScreen(
                 TopAppBar(
                     title = { Text("加载中...") },
                     navigationIcon = {
-                        IconButton(onClick = onBackClick) {
+                        IconButton(onClick = handleBackClick) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "返回"
@@ -503,7 +532,7 @@ fun BookDetailScreen(
                 TopAppBar(
                     title = { Text("错误") },
                     navigationIcon = {
-                        IconButton(onClick = onBackClick) {
+                        IconButton(onClick = handleBackClick) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "返回"
@@ -535,7 +564,7 @@ fun BookDetailScreen(
             TopAppBar(
                 title = { Text(currentBook.title) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(onClick = handleBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回"
@@ -562,7 +591,9 @@ fun BookDetailScreen(
                         .fillMaxWidth()
                         .height(300.dp)
                         .clickable {
-                            showFullscreenImage = true
+                            if (isPageActive) {
+                                showFullscreenImage = true
+                            }
                         },
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                     shape = RoundedCornerShape(12.dp)
@@ -581,7 +612,9 @@ fun BookDetailScreen(
                         // 编辑按钮
                         FilledIconButton(
                             onClick = {
-                                showCoverEditDialog = true
+                                if (isPageActive) {
+                                    showCoverEditDialog = true
+                                }
                             },
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
@@ -834,21 +867,23 @@ fun BookDetailScreen(
             }
         }
         
-        // 全屏图片查看器
-        if (showFullscreenImage) {
+        // 全屏图片查看器 - 只在页面活跃时显示
+        if (showFullscreenImage && isPageActive) {
             FullscreenImageViewer(
                 imagePath = currentBook.coverImagePath,
                 title = currentBook.title,
                 onClose = { showFullscreenImage = false },
                 onEdit = {
-                    showFullscreenImage = false
-                    showCoverEditDialog = true
+                    if (isPageActive) {
+                        showFullscreenImage = false
+                        showCoverEditDialog = true
+                    }
                 }
             )
         }
         
-        // 封面编辑对话框
-        if (showCoverEditDialog) {
+        // 封面编辑对话框 - 只在页面活跃时显示
+        if (showCoverEditDialog && isPageActive) {
             CoverEditDialog(
                 currentImagePath = currentBook.coverImagePath,
                 onImageSelected = { newImagePath ->

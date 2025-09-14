@@ -55,12 +55,19 @@ fun FullscreenImageViewer(
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 确保在组件销毁时能够正确处理
+    DisposableEffect(Unit) {
+        onDispose {
+            // 组件被销毁时的清理逻辑可以放在这里
+        }
+    }
     Dialog(
         onDismissRequest = onClose,
         properties = DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = true,
-            usePlatformDefaultWidth = false
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
         )
     ) {
         Box(
@@ -298,18 +305,34 @@ fun CoverEditDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
+    // 对话框是否处于活跃状态
+    var isDialogActive by remember { mutableStateOf(true) }
+    
+    // 增强的关闭处理函数
+    val handleDismiss: () -> Unit = {
+        isDialogActive = false
+        onDismiss()
+    }
+    
+    // 确保在组件销毁时能够正确处理
+    DisposableEffect(Unit) {
+        onDispose {
+            isDialogActive = false
+        }
+    }
+    
     // 相册选择器
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        if (uri != null) {
+        if (uri != null && isDialogActive) {
             scope.launch {
                 // 将选中的图片复制到应用私有存储
                 val imageManager = ImageFileManager(context)
                 val savedPath = imageManager.saveImageFromUri(uri)
-                if (savedPath != null) {
+                if (savedPath != null && isDialogActive) {
                     onImageSelected(savedPath)
-                    onDismiss()
+                    handleDismiss()
                 }
             }
         }
@@ -319,15 +342,15 @@ fun CoverEditDialog(
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success) {
+        if (success && isDialogActive) {
             // 拍照成功，图片已保存到临时文件
             // 这里需要实际的文件路径处理
-            onDismiss()
+            handleDismiss()
         }
     }
     
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = handleDismiss,
         title = {
             Text(
                 text = "编辑封面",
@@ -360,7 +383,9 @@ fun CoverEditDialog(
                     // 从相册选择
                     OutlinedButton(
                         onClick = {
-                            galleryLauncher.launch("image/*")
+                            if (isDialogActive) {
+                                galleryLauncher.launch("image/*")
+                            }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -395,8 +420,10 @@ fun CoverEditDialog(
                     if (currentImagePath != null) {
                         OutlinedButton(
                             onClick = {
-                                onImageDeleted()
-                                onDismiss()
+                                if (isDialogActive) {
+                                    onImageDeleted()
+                                    handleDismiss()
+                                }
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.outlinedButtonColors(
@@ -417,7 +444,7 @@ fun CoverEditDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = handleDismiss) {
                 Text("取消")
             }
         }
