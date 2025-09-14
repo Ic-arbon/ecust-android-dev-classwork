@@ -63,7 +63,7 @@ object DataConverter {
             title = book.title,
             author = book.author,
             description = book.description,
-            coverImageRes = book.coverImageRes,
+            coverImagePath = book.coverImagePath,
             lastUpdateTime = book.lastUpdateTime
         )
     }
@@ -77,7 +77,7 @@ object DataConverter {
             title = entity.title,
             author = entity.author,
             description = entity.description,
-            coverImageRes = entity.coverImageRes,
+            coverImagePath = entity.coverImagePath,
             lastUpdateTime = entity.lastUpdateTime,
             chapters = chapters
         )

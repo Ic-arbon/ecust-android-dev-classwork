@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.classwork2.database.dao.BookDao
 import com.example.classwork2.database.dao.ChapterDao
 import com.example.classwork2.database.dao.UserDao
@@ -17,7 +19,7 @@ import com.example.classwork2.database.entities.UserEntity
  * 使用Room框架管理SQLite数据库
  * 包含用户、书籍和章节三个表
  * 
- * @version 3 数据库版本号（新增章节层级结构支持）
+ * @version 4 数据库版本号（更新封面存储方式为文件路径）
  * @exportSchema false 不导出schema文件
  */
 @Database(
@@ -26,7 +28,7 @@ import com.example.classwork2.database.entities.UserEntity
         BookEntity::class,
         ChapterEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -52,6 +54,40 @@ abstract class AppDatabase : RoomDatabase() {
         private var INSTANCE: AppDatabase? = null
         
         /**
+         * 数据库迁移：版本3到4
+         * 将coverImageRes (INTEGER) 改为 coverImagePath (TEXT)
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 创建新的表结构
+                database.execSQL("""
+                    CREATE TABLE books_new (
+                        id TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        author TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        coverImagePath TEXT,
+                        lastUpdateTime INTEGER NOT NULL,
+                        PRIMARY KEY(id)
+                    )
+                """.trimIndent())
+                
+                // 复制数据（coverImageRes设为null，因为无法转换为文件路径）
+                database.execSQL("""
+                    INSERT INTO books_new (id, title, author, description, coverImagePath, lastUpdateTime)
+                    SELECT id, title, author, description, NULL, lastUpdateTime
+                    FROM books
+                """.trimIndent())
+                
+                // 删除旧表
+                database.execSQL("DROP TABLE books")
+                
+                // 重命名新表
+                database.execSQL("ALTER TABLE books_new RENAME TO books")
+            }
+        }
+        
+        /**
          * 获取数据库实例（单例模式）
          * 
          * @param context 应用上下文
@@ -63,7 +99,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "magic_library_database"
-                ).fallbackToDestructiveMigration() // 简单处理：重建数据库
+                ).addMigrations(MIGRATION_3_4) // 添加数据库迁移
                 .build()
                 INSTANCE = instance
                 instance

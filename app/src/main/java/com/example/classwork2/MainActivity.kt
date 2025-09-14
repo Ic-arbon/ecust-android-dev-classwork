@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Menu
@@ -62,6 +63,10 @@ import com.example.classwork2.network.ImportProgress
 import com.example.classwork2.network.ImportProgressCallback
 import com.example.classwork2.network.ImportStage
 import com.example.classwork2.network.SimpleCancellationToken
+import com.example.classwork2.ui.components.FullscreenImageViewer
+import com.example.classwork2.ui.components.CoverEditDialog
+import com.example.classwork2.ui.components.SmartImage
+import com.example.classwork2.utils.ImageFileManager
 import kotlinx.coroutines.launch
 
 /**
@@ -94,7 +99,7 @@ data class Chapter(
  * @param title 书籍标题
  * @param author 作者
  * @param description 书籍描述
- * @param coverImageRes 封面图片资源ID，如果为null则使用默认封面
+ * @param coverImagePath 封面图片文件路径，如果为null则使用默认封面
  * @param lastUpdateTime 最后更新时间（毫秒时间戳）
  * @param chapters 章节列表
  */
@@ -103,7 +108,7 @@ data class Book(
     val title: String,
     val author: String,
     val description: String,
-    val coverImageRes: Int? = null,
+    val coverImagePath: String? = null,
     val lastUpdateTime: Long = System.currentTimeMillis(),
     val chapters: List<Chapter> = emptyList()
 )
@@ -432,9 +437,14 @@ fun BookDetailScreen(
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     val bookRepository = remember { BookRepository(database.bookDao(), database.chapterDao()) }
+    val scope = rememberCoroutineScope()
     
     var book by remember { mutableStateOf<Book?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    
+    // 封面相关状态
+    var showFullscreenImage by remember { mutableStateOf(false) }
+    var showCoverEditDialog by remember { mutableStateOf(false) }
     
     // 折叠状态管理：使用卷标题作为键，存储每个卷的展开/折叠状态
     var expandedVolumes by remember { mutableStateOf(setOf<String>()) }
@@ -550,7 +560,10 @@ fun BookDetailScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp),
+                        .height(300.dp)
+                        .clickable {
+                            showFullscreenImage = true
+                        },
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -558,28 +571,31 @@ fun BookDetailScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        val coverRes = currentBook.coverImageRes
-                        if (coverRes != null) {
-                            Image(
-                                painter = painterResource(coverRes),
-                                contentDescription = currentBook.title,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
+                        SmartImage(
+                            imagePath = currentBook.coverImagePath,
+                            contentDescription = currentBook.title,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        
+                        // 编辑按钮
+                        FilledIconButton(
+                            onClick = {
+                                showCoverEditDialog = true
+                            },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(16.dp)
+                                .size(48.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                             )
-                        } else {
-                            Surface(
-                                modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.primaryContainer
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(120.dp)
-                                        .padding(32.dp),
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "编辑封面",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
                         }
                     }
                 }
@@ -817,6 +833,60 @@ fun BookDetailScreen(
                 }
             }
         }
+        
+        // 全屏图片查看器
+        if (showFullscreenImage) {
+            FullscreenImageViewer(
+                imagePath = currentBook.coverImagePath,
+                title = currentBook.title,
+                onClose = { showFullscreenImage = false },
+                onEdit = {
+                    showFullscreenImage = false
+                    showCoverEditDialog = true
+                }
+            )
+        }
+        
+        // 封面编辑对话框
+        if (showCoverEditDialog) {
+            CoverEditDialog(
+                currentImagePath = currentBook.coverImagePath,
+                onImageSelected = { newImagePath ->
+                    // 更新数据库中的封面路径
+                    scope.launch {
+                        try {
+                            val updatedBook = currentBook.copy(coverImagePath = newImagePath)
+                            val updatedEntity = DataConverter.bookToEntity(updatedBook)
+                            bookRepository.updateBook(updatedEntity)
+                            book = updatedBook
+                        } catch (e: Exception) {
+                            // 处理错误
+                        }
+                    }
+                },
+                onImageDeleted = {
+                    // 删除封面
+                    scope.launch {
+                        try {
+                            // 删除文件
+                            if (currentBook.coverImagePath != null) {
+                                val imageManager = ImageFileManager(context)
+                                imageManager.deleteImage(currentBook.coverImagePath!!)
+                            }
+                            
+                            // 更新数据库
+                            val updatedBook = currentBook.copy(coverImagePath = null)
+                            val updatedEntity = DataConverter.bookToEntity(updatedBook)
+                            bookRepository.updateBook(updatedEntity)
+                            book = updatedBook
+                        } catch (e: Exception) {
+                            // 处理错误
+                        }
+                    }
+                },
+                onDismiss = { showCoverEditDialog = false }
+            )
+        }
     }
     }
 }
@@ -851,29 +921,12 @@ fun BookItem(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                if (book.coverImageRes != null) {
-                    Image(
-                        painter = painterResource(book.coverImageRes),
-                        contentDescription = book.title,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    // 默认书籍图标
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .padding(16.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
+                SmartImage(
+                    imagePath = book.coverImagePath,
+                    contentDescription = book.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
             }
             
             // 书籍标题

@@ -11,6 +11,13 @@
     
     <!-- 网络权限：允许应用程序访问网络进行数据请求 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- 存储权限：允许应用程序读取外部存储中的图片文件 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    
+    <!-- Android 13+ 图片访问权限：允许应用访问图片和视频 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <!-- 
         应用程序配置块

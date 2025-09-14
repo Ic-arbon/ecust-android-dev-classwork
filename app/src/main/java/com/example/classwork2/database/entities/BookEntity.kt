@@ -12,7 +12,7 @@ import androidx.room.PrimaryKey
  * @param title 书籍标题
  * @param author 作者
  * @param description 书籍描述
- * @param coverImageRes 封面图片资源ID，可为null使用默认封面
+ * @param coverImagePath 封面图片文件路径，可为null使用默认封面
  * @param lastUpdateTime 最后更新时间（毫秒时间戳）
  */
 @Entity(tableName = "books")
@@ -22,6 +22,6 @@ data class BookEntity(
     val title: String,
     val author: String,
     val description: String,
-    val coverImageRes: Int? = null,
+    val coverImagePath: String? = null,
     val lastUpdateTime: Long = System.currentTimeMillis()
 )
