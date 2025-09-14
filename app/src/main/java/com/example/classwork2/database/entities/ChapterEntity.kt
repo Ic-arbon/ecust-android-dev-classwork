@@ -19,6 +19,8 @@ import androidx.room.PrimaryKey
  * @param volumeOrder 卷序号（可选）
  * @param subOrder 卷内序号（可选）
  * @param chapterOrder 章节全局序号
+ * @param content 章节正文内容（可选，按需加载）
+ * @param url 章节原始URL（可选，用于获取章节内容）
  */
 @Entity(
     tableName = "chapters",
@@ -41,5 +43,7 @@ data class ChapterEntity(
     val volumeTitle: String? = null,
     val volumeOrder: Int? = null,
     val subOrder: Int? = null,
-    val chapterOrder: Int = 0
+    val chapterOrder: Int = 0,
+    val content: String? = null,
+    val url: String? = null
 )

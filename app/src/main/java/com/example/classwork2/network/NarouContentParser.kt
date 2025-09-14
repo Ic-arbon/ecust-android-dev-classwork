@@ -308,7 +308,7 @@ class NarouContentParser {
                                         ChapterInfo(
                                             title = chapterTitle,
                                             url = fullUrl,
-                                            order = globalOrder,
+                                            order = chapterNumber ?: globalOrder, // 优先使用URL中的真实序号
                                             publishTime = updateTime,
                                             volumeTitle = currentVolumeTitle,
                                             volumeOrder = currentVolumeOrder,
@@ -393,6 +393,65 @@ class NarouContentParser {
             }
         } catch (e: Exception) {
             System.currentTimeMillis()
+        }
+    }
+    
+    /**
+     * 解析单个章节的内容
+     * 
+     * @param chapterUrl 章节页面URL
+     * @return 章节正文内容
+     */
+    suspend fun parseChapterContent(chapterUrl: String): String {
+        return withContext(Dispatchers.IO) {
+            try {
+                val document = Jsoup.connect(chapterUrl)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .timeout(15000)
+                    .get()
+                
+                // 提取章节内容
+                extractChapterText(document)
+                
+            } catch (e: Exception) {
+                println("❌ 解析章节内容失败: $chapterUrl, ${e.message}")
+                e.printStackTrace()
+                ""
+            }
+        }
+    }
+    
+    /**
+     * 从文档中提取章节正文
+     */
+    private fun extractChapterText(document: Document): String {
+        try {
+            // 小説家になろう的章节内容在 .p-novel__body 或 #novel_honbun 中
+            val contentElement = document.select(".p-novel__body").first()
+                ?: document.select("#novel_honbun").first()
+                ?: document.select(".novel_view").first()
+            
+            if (contentElement != null) {
+                // 移除不需要的元素（广告、注释等）
+                contentElement.select(".ads, .ad, script, style").remove()
+                
+                // 获取纯文本内容，保留段落结构
+                val text = contentElement.html()
+                    .replace("<br>", "\n")
+                    .replace("</p>", "\n\n")
+                    .replace("<p>", "")
+                
+                // 清理HTML标签并规范化空白字符
+                return Jsoup.parse(text).text()
+                    .replace(Regex("\\n\\s*\\n\\s*\\n"), "\n\n") // 合并多余的空行
+                    .trim()
+            }
+            
+            return "未找到章节内容"
+            
+        } catch (e: Exception) {
+            println("❌ 提取章节文本失败: ${e.message}")
+            return "内容提取失败: ${e.message}"
         }
     }
 }

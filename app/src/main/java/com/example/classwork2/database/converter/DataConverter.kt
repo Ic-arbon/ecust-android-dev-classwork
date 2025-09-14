@@ -4,6 +4,7 @@ import com.example.classwork2.*
 import com.example.classwork2.database.entities.BookEntity
 import com.example.classwork2.database.entities.ChapterEntity
 import com.example.classwork2.database.entities.UserEntity
+import com.example.classwork2.network.ChapterInfo
 
 /**
  * 数据转换工具类
@@ -86,7 +87,7 @@ object DataConverter {
     /**
      * Chapter转换为ChapterEntity
      */
-    fun chapterToEntity(chapter: Chapter, bookId: String): ChapterEntity {
+    fun chapterToEntity(chapter: Chapter, bookId: String, content: String? = null, url: String? = null): ChapterEntity {
         return ChapterEntity(
             id = chapter.id,
             bookId = bookId,
@@ -95,7 +96,9 @@ object DataConverter {
             volumeTitle = chapter.volumeTitle,
             volumeOrder = chapter.volumeOrder,
             subOrder = chapter.subOrder,
-            chapterOrder = chapter.chapterOrder
+            chapterOrder = chapter.chapterOrder,
+            content = content,
+            url = url
         )
     }
     
@@ -151,5 +154,31 @@ object DataConverter {
         val bookEntity = bookToEntity(book)
         val chapterEntities = chaptersToEntities(book.chapters, book.id)
         return Pair(bookEntity, chapterEntities)
+    }
+    
+    /**
+     * ChapterInfo转换为ChapterEntity
+     */
+    fun chapterInfoToEntity(chapterInfo: ChapterInfo, bookId: String): ChapterEntity {
+        return ChapterEntity(
+            id = chapterInfo.url.hashCode().toString(),
+            bookId = bookId,
+            title = chapterInfo.title,
+            pageCount = 1, // 默认为1页
+            volumeTitle = chapterInfo.volumeTitle,
+            volumeOrder = chapterInfo.volumeOrder,
+            subOrder = chapterInfo.subOrder,
+            chapterOrder = chapterInfo.order, // 直接使用ChapterInfo中的真实序号
+            content = null, // 初始时内容为空
+            url = chapterInfo.url
+        )
+    }
+    
+    /**
+     * ChapterInfo转换为ChapterEntity（保持向后兼容性）
+     */
+    @Deprecated("请使用不带chapterOrder参数的版本")
+    fun chapterInfoToEntity(chapterInfo: ChapterInfo, bookId: String, chapterOrder: Int): ChapterEntity {
+        return chapterInfoToEntity(chapterInfo, bookId)
     }
 }

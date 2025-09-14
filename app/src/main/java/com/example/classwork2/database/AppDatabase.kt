@@ -19,7 +19,7 @@ import com.example.classwork2.database.entities.UserEntity
  * 使用Room框架管理SQLite数据库
  * 包含用户、书籍和章节三个表
  * 
- * @version 4 数据库版本号（更新封面存储方式为文件路径）
+ * @version 6 数据库版本号（为章节表添加url字段）
  * @exportSchema false 不导出schema文件
  */
 @Database(
@@ -28,7 +28,7 @@ import com.example.classwork2.database.entities.UserEntity
         BookEntity::class,
         ChapterEntity::class
     ],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -88,6 +88,28 @@ abstract class AppDatabase : RoomDatabase() {
         }
         
         /**
+         * 数据库迁移：版本4到5
+         * 为chapters表添加content字段
+         */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 为chapters表添加content字段
+                database.execSQL("ALTER TABLE chapters ADD COLUMN content TEXT")
+            }
+        }
+        
+        /**
+         * 数据库迁移：版本5到6
+         * 为chapters表添加url字段
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 为chapters表添加url字段
+                database.execSQL("ALTER TABLE chapters ADD COLUMN url TEXT")
+            }
+        }
+        
+        /**
          * 获取数据库实例（单例模式）
          * 
          * @param context 应用上下文
@@ -99,7 +121,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "magic_library_database"
-                ).addMigrations(MIGRATION_3_4) // 添加数据库迁移
+                ).addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6) // 添加数据库迁移
                 .build()
                 INSTANCE = instance
                 instance

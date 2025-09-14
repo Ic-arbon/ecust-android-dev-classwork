@@ -14,9 +14,9 @@ interface ChapterDao {
     
     /**
      * 获取指定书籍的所有章节
-     * 按章节ID排序
+     * 按章节序号排序
      */
-    @Query("SELECT * FROM chapters WHERE bookId = :bookId ORDER BY id")
+    @Query("SELECT * FROM chapters WHERE bookId = :bookId ORDER BY chapterOrder")
     fun getChaptersByBookId(bookId: String): Flow<List<ChapterEntity>>
     
     /**
@@ -28,7 +28,7 @@ interface ChapterDao {
     /**
      * 获取所有章节
      */
-    @Query("SELECT * FROM chapters ORDER BY bookId, id")
+    @Query("SELECT * FROM chapters ORDER BY bookId, chapterOrder")
     fun getAllChapters(): Flow<List<ChapterEntity>>
     
     /**
@@ -72,4 +72,16 @@ interface ChapterDao {
      */
     @Query("DELETE FROM chapters")
     suspend fun deleteAllChapters()
+    
+    /**
+     * 更新章节内容
+     */
+    @Query("UPDATE chapters SET content = :content WHERE id = :chapterId")
+    suspend fun updateChapterContent(chapterId: String, content: String)
+    
+    /**
+     * 检查章节是否已有内容
+     */
+    @Query("SELECT CASE WHEN content IS NOT NULL AND content != '' THEN 1 ELSE 0 END FROM chapters WHERE id = :chapterId")
+    suspend fun hasChapterContent(chapterId: String): Boolean
 }

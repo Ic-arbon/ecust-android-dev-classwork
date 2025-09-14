@@ -4,6 +4,7 @@ package com.example.classwork2
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -67,7 +68,10 @@ import com.example.classwork2.ui.components.FullscreenImageViewer
 import com.example.classwork2.ui.components.CoverEditDialog
 import com.example.classwork2.ui.components.SmartImage
 import com.example.classwork2.utils.ImageFileManager
+import com.example.classwork2.network.NarouContentParser
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import androidx.compose.ui.unit.sp
 
 /**
  * 章节数据类
@@ -432,6 +436,7 @@ fun NavigationOptionsSection(
 fun BookDetailScreen(
     bookId: String,
     onBackClick: () -> Unit,
+    onChapterClick: (String, String) -> Unit = { _, _ -> }, // (bookId, chapterId) -> Unit
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -811,7 +816,10 @@ fun BookDetailScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = if (volumeTitle != null) 16.dp else 0.dp),
+                                .padding(start = if (volumeTitle != null) 16.dp else 0.dp)
+                                .clickable {
+                                    onChapterClick(bookId, chapter.id)
+                                },
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface
                             ),
@@ -844,7 +852,11 @@ fun BookDetailScreen(
                 // 如果没有层级结构，按原方式显示
                 items(currentBook.chapters.sortedWith(compareBy<Chapter> { it.volumeOrder ?: 0 }.thenBy { it.chapterOrder })) { chapter ->
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onChapterClick(bookId, chapter.id)
+                            },
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
                         ),
@@ -1006,6 +1018,29 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 bookId = bookId,
                 onBackClick = {
                     navController.popBackStack()
+                },
+                onChapterClick = { _, chapterId ->
+                    navController.navigate("reader/$bookId/$chapterId")
+                }
+            )
+        }
+        composable("reader/{bookId}/{chapterId}") { backStackEntry ->
+            val bookId = backStackEntry.arguments?.getString("bookId") ?: ""
+            val chapterId = backStackEntry.arguments?.getString("chapterId") ?: ""
+            ReaderScreen(
+                bookId = bookId,
+                chapterId = chapterId,
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onNavigateToChapter = { _, newChapterId ->
+                    // 导航到新章节，替换当前页面
+                    navController.navigate("reader/$bookId/$newChapterId") {
+                        // 替换当前页面，避免堆栈过深
+                        popUpTo("reader/$bookId/$chapterId") {
+                            inclusive = true
+                        }
+                    }
                 }
             )
         }
@@ -1386,18 +1421,12 @@ fun ImportBookScreen(
                                             
                                             bookRepository.insertBook(bookEntity)
                                             
-                                            // 保存章节信息，重新分配连续的章节序号
+                                            // 保存章节信息，使用章节的真实序号
                                             val sortedChapters = bookInfo.chapters.sortedBy { it.order }
-                                            sortedChapters.forEachIndexed { index, chapterInfo ->
-                                                val chapterEntity = com.example.classwork2.database.entities.ChapterEntity(
-                                                    id = chapterInfo.url.hashCode().toString(),
-                                                    bookId = bookEntity.id,
-                                                    title = chapterInfo.title,
-                                                    pageCount = 1, // 暂时设为1页，后续可实现章节内容获取后计算实际页数
-                                                    volumeTitle = chapterInfo.volumeTitle,
-                                                    volumeOrder = chapterInfo.volumeOrder,
-                                                    subOrder = chapterInfo.subOrder,
-                                                    chapterOrder = index + 1  // 使用从1开始的连续序号
+                                            sortedChapters.forEach { chapterInfo ->
+                                                val chapterEntity = DataConverter.chapterInfoToEntity(
+                                                    chapterInfo = chapterInfo,
+                                                    bookId = bookEntity.id
                                                 )
                                                 database.chapterDao().insertChapter(chapterEntity)
                                             }
@@ -1560,6 +1589,301 @@ fun ImportBookScreen(
                             text = bookInfo.description,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 阅读界面
+ * 
+ * 显示章节内容的全屏阅读页面
+ * 
+ * @param bookId 书籍ID
+ * @param chapterId 章节ID
+ * @param onBackClick 返回按钮点击事件
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReaderScreen(
+    bookId: String,
+    chapterId: String,
+    onBackClick: () -> Unit,
+    onNavigateToChapter: (String, String) -> Unit = { _, _ -> }, // (bookId, chapterId) -> Unit
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val database = remember { AppDatabase.getDatabase(context) }
+    val bookRepository = remember { BookRepository(database.bookDao(), database.chapterDao()) }
+    val contentParser = remember { NarouContentParser() }
+    val scope = rememberCoroutineScope()
+    
+    // 状态管理
+    var chapter by remember { mutableStateOf<Chapter?>(null) }
+    var book by remember { mutableStateOf<Book?>(null) }
+    var chapterContent by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // 阅读设置状态
+    var fontSize by remember { mutableStateOf<androidx.compose.ui.unit.TextUnit>(16.sp) }
+    var lineHeight by remember { mutableStateOf<Float>(1.6f) }
+    
+    // 加载章节和内容
+    LaunchedEffect(bookId, chapterId) {
+        try {
+            isLoading = true
+            errorMessage = null
+            
+            // 获取书籍信息
+            val bookEntity = bookRepository.getBookById(bookId)
+            if (bookEntity != null) {
+                val chapterEntities = bookRepository.getChaptersByBookId(bookId).first()
+                val chapters = DataConverter.entitiesToChapters(chapterEntities)
+                book = DataConverter.entityToBook(bookEntity, chapters)
+            }
+            
+            // 获取章节信息
+            val chapterEntity = database.chapterDao().getChapterById(chapterId)
+            if (chapterEntity != null) {
+                chapter = DataConverter.entityToChapter(chapterEntity)
+                
+                // 检查是否已有内容
+                if (chapterEntity.content.isNullOrEmpty()) {
+                    // 需要从网络下载内容
+                    if (!chapterEntity.url.isNullOrEmpty()) {
+                        try {
+                            // 从网络获取真实的章节内容
+                            chapterContent = contentParser.parseChapterContent(chapterEntity.url!!)
+                            
+                            // 如果获取成功，保存到数据库
+                            if (!chapterContent.isNullOrBlank()) {
+                                database.chapterDao().updateChapterContent(chapterId, chapterContent!!)
+                            } else {
+                                chapterContent = "章节内容为空"
+                            }
+                        } catch (e: Exception) {
+                            chapterContent = "网络获取内容失败: ${e.message}\n\n调试信息:\n章节URL: ${chapterEntity.url}"
+                        }
+                    } else {
+                        chapterContent = "无法获取章节内容：章节URL为空\n\n这可能是因为该章节是在添加URL支持之前导入的。请重新导入该书籍以获取章节URL。\n\n调试信息:\n章节ID: $chapterId\n章节标题: ${chapterEntity.title}\nURL字段: ${if (chapterEntity.url == null) "null" else "空字符串"}"
+                    }
+                } else {
+                    chapterContent = chapterEntity.content
+                }
+            }
+            
+        } catch (e: Exception) {
+            errorMessage = "加载失败: ${e.message}"
+        } finally {
+            isLoading = false
+        }
+    }
+    
+    // 获取当前章节在列表中的位置，用于前后导航
+    val currentChapterIndex = remember(book, chapterId) {
+        book?.chapters?.indexOfFirst { it.id == chapterId } ?: -1
+    }
+    
+    val hasNextChapter = currentChapterIndex >= 0 && currentChapterIndex < (book?.chapters?.size ?: 0) - 1
+    val hasPrevChapter = currentChapterIndex > 0
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { 
+                    Text(
+                        text = chapter?.title ?: "加载中...",
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回"
+                        )
+                    }
+                },
+                actions = {
+                    // 字体大小控制
+                    IconButton(
+                        onClick = {
+                            fontSize = (fontSize.value - 2f).coerceAtLeast(12f).sp
+                        }
+                    ) {
+                        Text("A-", fontSize = 12.sp)
+                    }
+                    IconButton(
+                        onClick = {
+                            fontSize = (fontSize.value + 2f).coerceAtMost(24f).sp
+                        }
+                    ) {
+                        Text("A+", fontSize = 14.sp)
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            // 章节导航栏
+            if (hasNextChapter || hasPrevChapter) {
+                BottomAppBar(
+                    modifier = Modifier.height(56.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 上一章按钮
+                        Button(
+                            onClick = {
+                                if (hasPrevChapter) {
+                                    if (BuildConfig.DEBUG) {
+                                        Log.d("ChapterNavigation", "=== 上一章导航调试信息 ===")
+                                        Log.d("ChapterNavigation", "当前章节ID: $chapterId")
+                                        Log.d("ChapterNavigation", "当前章节序号: ${chapter?.chapterOrder}")
+                                        Log.d("ChapterNavigation", "currentChapterIndex: $currentChapterIndex")
+                                        Log.d("ChapterNavigation", "章节列表大小: ${book?.chapters?.size}")
+                                        book?.chapters?.forEachIndexed { index, ch ->
+                                            Log.d("ChapterNavigation", "  chapters[$index]: id=${ch.id}, order=${ch.chapterOrder}, title=${ch.title}")
+                                        }
+                                    }
+                                    val prevChapter = book?.chapters?.get(currentChapterIndex - 1)
+                                    if (BuildConfig.DEBUG) {
+                                        Log.d("ChapterNavigation", "目标上一章: id=${prevChapter?.id}, order=${prevChapter?.chapterOrder}, title=${prevChapter?.title}")
+                                    }
+                                    if (prevChapter != null) {
+                                        onNavigateToChapter(bookId, prevChapter.id)
+                                    }
+                                }
+                            },
+                            enabled = hasPrevChapter,
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                        ) {
+                            Text("上一章")
+                        }
+                        
+                        // 章节进度指示
+                        Text(
+                            text = "第${chapter?.chapterOrder ?: "?"} 话",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                        
+                        // 下一章按钮
+                        Button(
+                            onClick = {
+                                if (hasNextChapter) {
+                                    if (BuildConfig.DEBUG) {
+                                        Log.d("ChapterNavigation", "=== 下一章导航调试信息 ===")
+                                        Log.d("ChapterNavigation", "当前章节ID: $chapterId")
+                                        Log.d("ChapterNavigation", "当前章节序号: ${chapter?.chapterOrder}")
+                                        Log.d("ChapterNavigation", "currentChapterIndex: $currentChapterIndex")
+                                        Log.d("ChapterNavigation", "章节列表大小: ${book?.chapters?.size}")
+                                        book?.chapters?.forEachIndexed { index, ch ->
+                                            Log.d("ChapterNavigation", "  chapters[$index]: id=${ch.id}, order=${ch.chapterOrder}, title=${ch.title}")
+                                        }
+                                    }
+                                    val nextChapter = book?.chapters?.get(currentChapterIndex + 1)
+                                    if (BuildConfig.DEBUG) {
+                                        Log.d("ChapterNavigation", "目标下一章: id=${nextChapter?.id}, order=${nextChapter?.chapterOrder}, title=${nextChapter?.title}")
+                                    }
+                                    if (nextChapter != null) {
+                                        onNavigateToChapter(bookId, nextChapter.id)
+                                    }
+                                }
+                            },
+                            enabled = hasNextChapter,
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                        ) {
+                            Text("下一章")
+                        }
+                    }
+                }
+            }
+        },
+        modifier = modifier
+    ) { paddingValues ->
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        CircularProgressIndicator()
+                        Text("正在加载章节内容...")
+                    }
+                }
+            }
+            errorMessage != null -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = errorMessage!!,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Button(onClick = {
+                            // 重新加载
+                            scope.launch {
+                                isLoading = true
+                                errorMessage = null
+                                // 重新触发加载逻辑
+                            }
+                        }) {
+                            Text("重试")
+                        }
+                    }
+                }
+            }
+            chapterContent != null -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentPadding = PaddingValues(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        // 章节标题
+                        Text(
+                            text = chapter?.title ?: "",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 24.dp)
+                        )
+                    }
+                    
+                    item {
+                        // 章节内容
+                        Text(
+                            text = chapterContent!!,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontSize = fontSize,
+                                lineHeight = (fontSize * lineHeight)
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
