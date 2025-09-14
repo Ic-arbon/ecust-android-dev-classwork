@@ -774,15 +774,13 @@ fun BookDetailScreen(
                                     .padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // 如果有子序号，显示序号
-                                if (chapter.subOrder != null && volumeTitle != null) {
-                                    Text(
-                                        text = "${chapter.subOrder}.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(end = 8.dp)
-                                    )
-                                }
+                                // 显示全局序号
+                                Text(
+                                    text = "${chapter.chapterOrder}.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
                                 Text(
                                     text = chapter.title,
                                     style = MaterialTheme.typography.bodyMedium,
