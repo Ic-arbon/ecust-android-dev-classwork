@@ -435,15 +435,23 @@ class NarouContentParser {
                 // 移除不需要的元素（广告、注释等）
                 contentElement.select(".ads, .ad, script, style").remove()
                 
-                // 获取纯文本内容，保留段落结构
+                // 改进的文本提取：更好地保留换行结构
                 val text = contentElement.html()
-                    .replace("<br>", "\n")
-                    .replace("</p>", "\n\n")
-                    .replace("<p>", "")
+                    .replace("<br\\s*/?>"," \n", ignoreCase = true) // 处理<br>和<br/>标签
+                    .replace("</p>", "\n\n") // 段落结束添加双换行
+                    .replace("<p[^>]*>", "") // 移除段落开始标签（包括带属性的）
+                    .replace("</div>", "\n") // div结束添加换行
+                    .replace("<div[^>]*>", "") // 移除div开始标签
                 
-                // 清理HTML标签并规范化空白字符
-                return Jsoup.parse(text).text()
-                    .replace(Regex("\\n\\s*\\n\\s*\\n"), "\n\n") // 合并多余的空行
+                // 使用Jsoup清理剩余HTML标签，但保留我们添加的换行符
+                val cleanText = Jsoup.parse(text).wholeText() // 使用wholeText()而不是text()来保留换行
+                
+                // 规范化空白字符，但保留段落结构
+                return cleanText
+                    .replace(Regex("[ \t]+"), " ") // 合并多余的空格和制表符
+                    .replace(Regex("\n[ \t]*\n[ \t]*\n+"), "\n\n") // 最多保留双换行
+                    .replace(Regex("^\n+"), "") // 移除开头的换行
+                    .replace(Regex("\n+$"), "") // 移除结尾的换行
                     .trim()
             }
             
