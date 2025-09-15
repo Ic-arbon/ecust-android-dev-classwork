@@ -9,41 +9,18 @@ import java.util.regex.Pattern
 class TextProcessor {
     
     companion object {
-        // 日文句号和标点
-        private val JAPANESE_SENTENCE_ENDINGS = arrayOf(
-            "。", "！", "？", "…", "‥"
-        )
-        
-        // 中文句号和标点
-        private val CHINESE_SENTENCE_ENDINGS = arrayOf(
-            "。", "！", "？", "…", "．"
-        )
-        
-        // 英文句号和标点
-        private val ENGLISH_SENTENCE_ENDINGS = arrayOf(
-            ".", "!", "?", "..."
-        )
-        
-        // 引号和括号
-        private val QUOTE_ENDINGS = arrayOf(
-            "」", "』", "\"", "'", ")", "）", "】", "〉", "》"
-        )
-        
-        // 段落分隔符
-        private val PARAGRAPH_SEPARATORS = arrayOf(
-            "\n\n", "\r\n\r\n"
-        )
+        // 保留类结构，但移除不再需要的标点符号常量
     }
     
     /**
-     * 智能句子分割
-     * 基于标点符号和语言特征分割句子，保持语义完整性
+     * 基于换行符的句子分割
+     * 因为HTML标签已在解析阶段转换为换行符，直接按换行分割即可
      * 
-     * @param text 原始文本
+     * @param text 原始文本（HTML标签已转换为换行符）
      * @return 分割后的句子列表
      */
     fun splitIntoSentences(text: String): List<String> {
-        println("=== [TextProcessor] 开始句子分割 ===")
+        println("=== [TextProcessor] 开始句子分割（基于换行符）===")
         println("原始文本长度: ${text.length}")
         println("原始文本前100字符: ${text.take(100)}")
         
@@ -52,155 +29,21 @@ class TextProcessor {
             return emptyList()
         }
         
-        val sentences = mutableListOf<String>()
-        var currentSentence = StringBuilder()
-        var i = 0
+        // 基于换行符分割，因为HTML标签已在解析阶段转换为换行符
+        val lines = text.split('\n')
         
-        // 预处理：标准化换行符
-        val normalizedText = text
-            .replace("\r\n", "\n")
-            .replace("\r", "\n")
-            .trim()
+        // 清理和过滤
+        val sentences = lines
+            .map { it.trim() }           // 清理前后空白
+            .filter { it.isNotEmpty() }  // 过滤空行
         
-        while (i < normalizedText.length) {
-            val currentChar = normalizedText[i]
-            currentSentence.append(currentChar)
-            
-            // 检查是否为句子结束标点
-            if (isSentenceEnding(currentChar)) {
-                // 检查后续字符
-                val nextIndex = i + 1
-                var shouldEnd = true
-                
-                // 处理引号结尾的情况
-                if (nextIndex < normalizedText.length) {
-                    val nextChar = normalizedText[nextIndex]
-                    
-                    // 如果句号后面跟着引号，继续包含
-                    if (isQuoteEnding(nextChar)) {
-                        currentSentence.append(nextChar)
-                        i++
-                    }
-                    // 如果后面紧跟小写字母或数字，可能不是句子结尾
-                    else if (nextChar.isLowerCase() || nextChar.isDigit()) {
-                        shouldEnd = false
-                    }
-                }
-                
-                if (shouldEnd) {
-                    val sentence = currentSentence.toString().trim()
-                    if (sentence.isNotEmpty()) {
-                        sentences.add(sentence)
-                        println("分割出句子 ${sentences.size}: $sentence")
-                    }
-                    currentSentence.clear()
-                }
-            }
-            // 检查段落分隔
-            else if (currentChar == '\n') {
-                // 检查是否为段落分隔（双换行）
-                if (i + 1 < normalizedText.length && normalizedText[i + 1] == '\n') {
-                    val sentence = currentSentence.toString().trim()
-                    if (sentence.isNotEmpty()) {
-                        sentences.add(sentence)
-                        println("段落分隔出句子 ${sentences.size}: $sentence")
-                    }
-                    currentSentence.clear()
-                    // 跳过第二个换行符
-                    i++
-                }
-                // 单换行符转为空格，保持句子连续性
-                else {
-                    currentSentence.setLength(currentSentence.length - 1)
-                    currentSentence.append(" ")
-                }
-            }
-            
-            i++
-        }
-        
-        // 处理最后剩余的文本
-        val lastSentence = currentSentence.toString().trim()
-        if (lastSentence.isNotEmpty()) {
-            sentences.add(lastSentence)
-        }
-        
-        // 后处理：合并过短的句子和清理
-        return postProcessSentences(sentences)
-    }
-    
-    /**
-     * 检查字符是否为句子结束标点
-     */
-    private fun isSentenceEnding(char: Char): Boolean {
-        val charStr = char.toString()
-        return JAPANESE_SENTENCE_ENDINGS.contains(charStr) ||
-                CHINESE_SENTENCE_ENDINGS.contains(charStr) ||
-                ENGLISH_SENTENCE_ENDINGS.contains(charStr)
-    }
-    
-    /**
-     * 检查字符是否为引号结尾
-     */
-    private fun isQuoteEnding(char: Char): Boolean {
-        val charStr = char.toString()
-        return QUOTE_ENDINGS.contains(charStr)
-    }
-    
-    /**
-     * 后处理句子列表
-     * 合并过短的句子，清理空白字符
-     */
-    private fun postProcessSentences(sentences: List<String>): List<String> {
-        println("=== [TextProcessor] 开始后处理 ===")
-        println("待处理句子数量: ${sentences.size}")
+        println("=== [TextProcessor] 分句完成 ===")
+        println("最终句子数量: ${sentences.size}")
         sentences.forEachIndexed { index, sentence ->
-            println("句子 ${index + 1} (${sentence.length}字符): $sentence")
+            println("句子 ${index + 1}: \"$sentence\"")
         }
         
-        val processed = mutableListOf<String>()
-        var i = 0
-        
-        while (i < sentences.size) {
-            var currentSentence = sentences[i].trim()
-            println("处理句子 ${i + 1}: \"$currentSentence\" (长度: ${currentSentence.length})")
-            
-            // 如果当前句子太短（少于3个字符），尝试与下一句合并
-            if (currentSentence.length < 3 && i + 1 < sentences.size) {
-                val nextSentence = sentences[i + 1].trim()
-                println("句子过短，与下一句合并: \"$nextSentence\"")
-                currentSentence = "$currentSentence $nextSentence"
-                i++ // 跳过下一句
-                println("合并后: \"$currentSentence\" (长度: ${currentSentence.length})")
-            }
-            
-            // 清理多余的空白字符
-            val cleanedSentence = currentSentence
-                .replace(Regex("\\s+"), " ")
-                .trim()
-            
-            if (cleanedSentence != currentSentence) {
-                println("清理空白字符: \"$currentSentence\" -> \"$cleanedSentence\"")
-            }
-            currentSentence = cleanedSentence
-            
-            if (currentSentence.isNotEmpty()) {
-                processed.add(currentSentence)
-                println("添加到结果: 第${processed.size}句 - \"$currentSentence\"")
-            } else {
-                println("句子为空，跳过")
-            }
-            
-            i++
-        }
-        
-        println("=== [TextProcessor] 后处理完成 ===")
-        println("最终句子数量: ${processed.size}")
-        processed.forEachIndexed { index, sentence ->
-            println("最终句子 ${index + 1}: \"$sentence\"")
-        }
-        
-        return processed
+        return sentences
     }
     
     /**
