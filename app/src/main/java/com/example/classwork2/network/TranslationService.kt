@@ -27,13 +27,8 @@ class TranslationService {
     companion object {
         private const val TAG = "TranslationService"
         
-        // 只在Debug模式下启用详细日志
-        private val isDebugMode = BuildConfig.DEBUG
-        
         private fun logDebug(message: String) {
-            if (isDebugMode) {
-                Log.d(TAG, message)
-            }
+            Log.d(TAG, message)
         }
         
         private fun logInfo(message: String) {
@@ -378,8 +373,8 @@ $numberedSentences
             val trimmed = line.trim()
             if (trimmed.startsWith("$nextIndex.")) {
                 val partialContent = trimmed.removePrefix("$nextIndex.").trim()
-                // 只在调试模式下输出部分翻译日志
-                if (isDebugMode && partialContent.length > 10) {
+                // 输出部分翻译日志
+                if (partialContent.length > 10) {
                     logDebug("部分翻译 $nextIndex: ${partialContent.take(20)}...")
                 }
                 return partialContent

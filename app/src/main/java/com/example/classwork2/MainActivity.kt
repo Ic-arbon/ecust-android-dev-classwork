@@ -1744,20 +1744,16 @@ fun ReaderScreen(
                         Button(
                             onClick = {
                                 if (hasPrevChapter) {
-                                    if (BuildConfig.DEBUG) {
-                                        Log.d("ChapterNavigation", "=== 上一章导航调试信息 ===")
-                                        Log.d("ChapterNavigation", "当前章节ID: $chapterId")
-                                        Log.d("ChapterNavigation", "当前章节序号: ${chapter?.chapterOrder}")
-                                        Log.d("ChapterNavigation", "currentChapterIndex: $currentChapterIndex")
-                                        Log.d("ChapterNavigation", "章节列表大小: ${book?.chapters?.size}")
-                                        book?.chapters?.forEachIndexed { index, ch ->
-                                            Log.d("ChapterNavigation", "  chapters[$index]: id=${ch.id}, order=${ch.chapterOrder}, title=${ch.title}")
-                                        }
+                                    Log.d("ChapterNavigation", "=== 上一章导航调试信息 ===")
+                                    Log.d("ChapterNavigation", "当前章节ID: $chapterId")
+                                    Log.d("ChapterNavigation", "当前章节序号: ${chapter?.chapterOrder}")
+                                    Log.d("ChapterNavigation", "currentChapterIndex: $currentChapterIndex")
+                                    Log.d("ChapterNavigation", "章节列表大小: ${book?.chapters?.size}")
+                                    book?.chapters?.forEachIndexed { index, ch ->
+                                        Log.d("ChapterNavigation", "  chapters[$index]: id=${ch.id}, order=${ch.chapterOrder}, title=${ch.title}")
                                     }
                                     val prevChapter = book?.chapters?.get(currentChapterIndex - 1)
-                                    if (BuildConfig.DEBUG) {
-                                        Log.d("ChapterNavigation", "目标上一章: id=${prevChapter?.id}, order=${prevChapter?.chapterOrder}, title=${prevChapter?.title}")
-                                    }
+                                    Log.d("ChapterNavigation", "目标上一章: id=${prevChapter?.id}, order=${prevChapter?.chapterOrder}, title=${prevChapter?.title}")
                                     if (prevChapter != null) {
                                         onNavigateToChapter(bookId, prevChapter.id)
                                     }
@@ -1780,20 +1776,16 @@ fun ReaderScreen(
                         Button(
                             onClick = {
                                 if (hasNextChapter) {
-                                    if (BuildConfig.DEBUG) {
-                                        Log.d("ChapterNavigation", "=== 下一章导航调试信息 ===")
-                                        Log.d("ChapterNavigation", "当前章节ID: $chapterId")
-                                        Log.d("ChapterNavigation", "当前章节序号: ${chapter?.chapterOrder}")
-                                        Log.d("ChapterNavigation", "currentChapterIndex: $currentChapterIndex")
-                                        Log.d("ChapterNavigation", "章节列表大小: ${book?.chapters?.size}")
-                                        book?.chapters?.forEachIndexed { index, ch ->
-                                            Log.d("ChapterNavigation", "  chapters[$index]: id=${ch.id}, order=${ch.chapterOrder}, title=${ch.title}")
-                                        }
+                                    Log.d("ChapterNavigation", "=== 下一章导航调试信息 ===")
+                                    Log.d("ChapterNavigation", "当前章节ID: $chapterId")
+                                    Log.d("ChapterNavigation", "当前章节序号: ${chapter?.chapterOrder}")
+                                    Log.d("ChapterNavigation", "currentChapterIndex: $currentChapterIndex")
+                                    Log.d("ChapterNavigation", "章节列表大小: ${book?.chapters?.size}")
+                                    book?.chapters?.forEachIndexed { index, ch ->
+                                        Log.d("ChapterNavigation", "  chapters[$index]: id=${ch.id}, order=${ch.chapterOrder}, title=${ch.title}")
                                     }
                                     val nextChapter = book?.chapters?.get(currentChapterIndex + 1)
-                                    if (BuildConfig.DEBUG) {
-                                        Log.d("ChapterNavigation", "目标下一章: id=${nextChapter?.id}, order=${nextChapter?.chapterOrder}, title=${nextChapter?.title}")
-                                    }
+                                    Log.d("ChapterNavigation", "目标下一章: id=${nextChapter?.id}, order=${nextChapter?.chapterOrder}, title=${nextChapter?.title}")
                                     if (nextChapter != null) {
                                         onNavigateToChapter(bookId, nextChapter.id)
                                     }

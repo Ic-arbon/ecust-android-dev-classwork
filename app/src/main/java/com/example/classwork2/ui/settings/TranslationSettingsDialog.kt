@@ -33,10 +33,11 @@ import kotlinx.coroutines.launch
 @Composable
 fun TranslationSettingsDialog(
     onDismiss: () -> Unit,
-    onSettingsChanged: () -> Unit = {}
+    onSettingsChanged: () -> Unit = {},
+    translationSettings: TranslationSettings? = null
 ) {
     val context = LocalContext.current
-    val settings = remember { TranslationSettings(context) }
+    val settings = translationSettings ?: remember { TranslationSettings(context) }
     val translationService = remember { TranslationService() }
     val scope = rememberCoroutineScope()
     
