@@ -140,7 +140,6 @@ class TranslationSettings(context: Context) {
  * 显示模式枚举
  */
 enum class DisplayMode(val displayName: String) {
-    ORIGINAL_ONLY("仅原文"),
     TRANSLATION_ONLY("仅译文"),
     BILINGUAL("双语对照");
     

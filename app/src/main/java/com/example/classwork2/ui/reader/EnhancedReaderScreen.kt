@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.*
@@ -14,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -28,7 +28,6 @@ import com.example.classwork2.network.api.TranslationState
 import com.example.classwork2.settings.DisplayMode
 import com.example.classwork2.settings.TranslationSettings
 import com.example.classwork2.ui.components.BilingualSentencePair
-import com.example.classwork2.ui.components.TranslationProgressIndicator
 import com.example.classwork2.ui.settings.TranslationSettingsDialog
 import com.example.classwork2.utils.TextProcessor
 import com.example.classwork2.network.NarouContentParser
@@ -79,6 +78,7 @@ fun EnhancedReaderScreen(
     var displayMode by remember { mutableStateOf(translationSettings.displayMode) }
     var isTranslating by remember { mutableStateOf(false) }
     var showTranslationSettings by remember { mutableStateOf(false) }
+    var isTranslationEnabled by remember { mutableStateOf(false) }
     
     // 阅读设置状态
     var fontSize by remember { mutableStateOf(16.sp) }
@@ -131,6 +131,10 @@ fun EnhancedReaderScreen(
                     val translationPairs = loadTranslationData(chapterEntity, chapterContent, textProcessor, gson)
                     withContext(Dispatchers.Main) {
                         sentencePairs = translationPairs
+                        // 如果已有翻译内容，默认启用翻译显示
+                        if (translationPairs.any { it.translation.isNotEmpty() }) {
+                            isTranslationEnabled = true
+                        }
                         println("=== [EnhancedReaderScreen] 翻译数据加载完成，句子对数量: ${translationPairs.size} ===")
                     }
                 } else {
@@ -180,32 +184,23 @@ fun EnhancedReaderScreen(
                     }
                 },
                 actions = {
-                    // 显示模式切换
-                    IconButton(
-                        onClick = {
-                            displayMode = when (displayMode) {
-                                DisplayMode.ORIGINAL_ONLY -> DisplayMode.BILINGUAL
-                                DisplayMode.BILINGUAL -> DisplayMode.TRANSLATION_ONLY
-                                DisplayMode.TRANSLATION_ONLY -> DisplayMode.ORIGINAL_ONLY
-                            }
-                            translationSettings.displayMode = displayMode
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Language,
-                            contentDescription = "切换显示模式: ${displayMode.displayName}"
-                        )
-                    }
-                    
-                    // 翻译按钮
+                    // 翻译切换按钮
                     IconButton(
                         onClick = {
                             if (isTranslating) {
-                                // 停止翻译（暂时不实现取消功能）
+                                // 翻译进行中，允许切换显示状态
+                                isTranslationEnabled = !isTranslationEnabled
+                            } else if (sentencePairs.any { it.translation.isNotEmpty() }) {
+                                // 如果已有翻译，切换显示状态
+                                isTranslationEnabled = !isTranslationEnabled
                             } else {
+                                // 如果没有翻译，开始翻译并立即启用显示
                                 println("=== [EnhancedReaderScreen] 开始翻译 ===")
                                 println("章节内容长度: ${chapterContent?.length ?: 0}")
                                 println("句子对数量: ${sentencePairs.size}")
+                                
+                                // 立即启用翻译显示
+                                isTranslationEnabled = true
                                 
                                 startTranslation(
                                     chapterEntity = chapter!!,
@@ -239,7 +234,16 @@ fun EnhancedReaderScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Translate,
-                            contentDescription = if (isTranslating) "停止翻译" else "开始翻译"
+                            contentDescription = when {
+                                isTranslating -> "翻译中..."
+                                sentencePairs.any { it.translation.isNotEmpty() } -> 
+                                    if (isTranslationEnabled) "隐藏翻译" else "显示翻译"
+                                else -> "开始翻译"
+                            },
+                            tint = if (isTranslationEnabled) 
+                                MaterialTheme.colorScheme.primary 
+                            else 
+                                LocalContentColor.current
                         )
                     }
                     
@@ -360,16 +364,6 @@ fun EnhancedReaderScreen(
                         .fillMaxSize()
                         .padding(paddingValues)
                 ) {
-                    // 翻译进度指示器
-                    if (isTranslating || sentencePairs.any { it.translation.isNotEmpty() }) {
-                        TranslationProgressIndicator(
-                            currentSentence = sentencePairs.count { it.isComplete },
-                            totalSentences = sentencePairs.size,
-                            isTranslating = isTranslating,
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-                        )
-                    }
-                    
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
@@ -387,23 +381,53 @@ fun EnhancedReaderScreen(
                             )
                         }
                         
-                        // 显示句子对
+                        // 显示内容逻辑
                         if (sentencePairs.isNotEmpty()) {
                             items(sentencePairs) { pair ->
-                                BilingualSentencePair(
-                                    originalText = pair.original,
-                                    translatedText = pair.translation,
-                                    isTranslating = pair.isTranslating,
-                                    showTranslation = displayMode != DisplayMode.ORIGINAL_ONLY,
-                                    originalStyle = MaterialTheme.typography.bodyLarge.copy(
-                                        fontSize = fontSize,
-                                        lineHeight = fontSize * lineHeight
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                if (isTranslationEnabled) {
+                                    // 翻译模式：根据显示模式显示双语或仅译文
+                                    if (displayMode == DisplayMode.BILINGUAL) {
+                                        // 双语对照模式
+                                        BilingualSentencePair(
+                                            originalText = pair.original,
+                                            translatedText = pair.translation,
+                                            isTranslating = pair.isTranslating,
+                                            showTranslation = true,
+                                            originalStyle = MaterialTheme.typography.bodyLarge.copy(
+                                                fontSize = fontSize,
+                                                lineHeight = fontSize * lineHeight
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    } else {
+                                        // 仅译文模式
+                                        BilingualSentencePair(
+                                            originalText = "",
+                                            translatedText = pair.translation,
+                                            isTranslating = pair.isTranslating,
+                                            showTranslation = true,
+                                            originalStyle = MaterialTheme.typography.bodyLarge.copy(
+                                                fontSize = fontSize,
+                                                lineHeight = fontSize * lineHeight
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                } else {
+                                    // 原文模式：仅显示原文
+                                    Text(
+                                        text = pair.original,
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            fontSize = fontSize,
+                                            lineHeight = fontSize * lineHeight
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                    )
+                                }
                             }
                         } else {
-                            // 如果没有句子对，显示原始内容
+                            // 没有句子对时显示原始内容
                             item {
                                 Text(
                                     text = chapterContent!!,
