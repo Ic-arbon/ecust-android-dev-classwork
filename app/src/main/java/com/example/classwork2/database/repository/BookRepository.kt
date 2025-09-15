@@ -76,6 +76,16 @@ class BookRepository(
     }
     
     /**
+     * 根据ID删除书籍
+     * 同时会级联删除相关章节
+     * 
+     * @param bookId 要删除的书籍ID
+     */
+    suspend fun deleteBookById(bookId: String) {
+        bookDao.deleteBookById(bookId)
+    }
+    
+    /**
      * 清除所有书籍数据
      */
     suspend fun clearAllBooks() {

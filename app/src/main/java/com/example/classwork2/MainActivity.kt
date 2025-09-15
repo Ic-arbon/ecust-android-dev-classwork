@@ -8,8 +8,12 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -25,6 +29,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -34,6 +40,7 @@ import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -236,6 +243,12 @@ fun MainScreenWithDrawer(
     // 抽屉状态管理
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    
+    // 选择模式状态（提升到这里以便控制TopAppBar）
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var selectedBooksCount by remember { mutableStateOf(0) }
+    var onDeleteClick by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var onCancelSelectionClick by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     // 从UserInfoManager获取真实的用户信息
     val currentUserInfo = remember { userInfoManager.getUserInfo() }
@@ -266,40 +279,85 @@ fun MainScreenWithDrawer(
         // 主要内容区域
         Scaffold(
             topBar = {
-                // 顶部应用栏，包含汉堡菜单图标和导入按钮
-                TopAppBar(
-                    title = { Text("魔法图书馆") },
-                    navigationIcon = {
-                        IconButton(
-                            onClick = {
-                                // 点击汉堡菜单图标打开抽屉
-                                scope.launch { drawerState.open() }
-                            },
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Menu,
-                                contentDescription = "打开菜单",
-                            )
+                if (isSelectionMode) {
+                    // 选择模式下的顶部栏
+                    TopAppBar(
+                        title = { 
+                            Text("已选择 $selectedBooksCount 本")
+                        },
+                        navigationIcon = {
+                            IconButton(
+                                onClick = { onCancelSelectionClick?.invoke() }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "取消选择"
+                                )
+                            }
+                        },
+                        actions = {
+                            // 删除按钮
+                            IconButton(
+                                onClick = { onDeleteClick?.invoke() },
+                                enabled = selectedBooksCount > 0
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "删除选中",
+                                    tint = if (selectedBooksCount > 0) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    )
+                } else {
+                    // 正常模式下的顶部栏
+                    TopAppBar(
+                        title = { Text("魔法图书馆") },
+                        navigationIcon = {
+                            IconButton(
+                                onClick = {
+                                    // 点击汉堡菜单图标打开抽屉
+                                    scope.launch { drawerState.open() }
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "打开菜单",
+                                )
+                            }
+                        },
+                        actions = {
+                            // 网络导入按钮
+                            IconButton(
+                                onClick = onImportClick
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "导入书籍"
+                                )
+                            }
                         }
-                    },
-                    actions = {
-                        // 网络导入按钮
-                        IconButton(
-                            onClick = onImportClick
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "导入书籍"
-                            )
-                        }
-                    }
-                )
+                    )
+                }
             },
         ) { paddingValues ->
-            // 主要内容区域
+            // 主要内容区域，传递选择模式控制到AppNavigation
             AppNavigation(
                 onReaderNavigation = onReaderNavigation,
-                modifier = Modifier.fillMaxSize().padding(paddingValues)
+                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                onSelectionModeChange = { mode, count, onDelete, onCancel ->
+                    isSelectionMode = mode
+                    selectedBooksCount = count
+                    onDeleteClick = onDelete
+                    onCancelSelectionClick = onCancel
+                }
             )
         }
     }
@@ -969,50 +1027,120 @@ fun BookDetailScreen(
  * 书籍项组件
  *
  * 显示单个书籍，包含封面图片和标题
+ * 支持选中状态和长按操作
  * 
  * @param book 书籍信息
+ * @param isSelected 是否被选中
+ * @param isSelectionMode 是否处于选择模式
  * @param onClick 点击回调
+ * @param onLongClick 长按回调
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BookItem(
     book: Book,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(0.7f)
-            .clickable { onClick() }, // 添加点击事件
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Column {
-            // 封面图片
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                SmartImage(
-                    imagePath = book.coverImagePath,
-                    contentDescription = book.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+    Box(modifier = modifier) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.7f)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                )
+                .then(
+                    // 选中状态下添加边框效果
+                    if (isSelected) {
+                        Modifier.border(
+                            width = 3.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                    } else {
+                        Modifier
+                    }
+                ),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = if (isSelected) 8.dp else 4.dp
+            ),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isSelected) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                }
+            )
+        ) {
+            Column {
+                // 封面图片
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SmartImage(
+                        imagePath = book.coverImagePath,
+                        contentDescription = book.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    
+                    // 选中状态下的半透明遮罩
+                    if (isSelected) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                )
+                        )
+                    }
+                }
+                
+                // 书籍标题
+                Text(
+                    text = book.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    maxLines = 2,
+                    textAlign = TextAlign.Center,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                 )
             }
-            
-            // 书籍标题
-            Text(
-                text = book.title,
+        }
+        
+        // 选择模式下显示复选框
+        if (isSelectionMode) {
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = null, // 由onClick处理
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                textAlign = TextAlign.Center
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                        shape = CircleShape
+                    )
+                    .padding(2.dp),
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
         }
     }
@@ -1021,12 +1149,15 @@ fun BookItem(
 /**
  * 应用导航组件
  *
- * 管理应用的整体导航流程
+ * 管理应用的整体导航流程和选择模式状态
+ * 
+ * @param onSelectionModeChange 选择模式变化回调
  */
 @Composable
 fun AppNavigation(
     onReaderNavigation: (String, String) -> Unit = { _, _ -> },
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSelectionModeChange: (Boolean, Int, (() -> Unit)?, (() -> Unit)?) -> Unit = { _, _, _, _ -> }
 ) {
     val navController = rememberNavController()
     
@@ -1039,7 +1170,8 @@ fun AppNavigation(
             MainContent(
                 onBookClick = { bookId ->
                     navController.navigate("book_detail/$bookId")
-                }
+                },
+                onSelectionModeChange = onSelectionModeChange
             )
         }
         composable("book_detail/{bookId}") { backStackEntry ->
@@ -1062,14 +1194,23 @@ fun AppNavigation(
  * 书籍列表组件
  *
  * 显示响应式网格布局的书籍列表，根据屏幕尺寸自动调整列数
+ * 支持选择模式和长按操作
  * 
  * @param books 书籍列表
- * @param onBookClick 书籍点击回调
+ * @param onBookClick 书籍点击回调（非选择模式下）
+ * @param isSelectionMode 是否处于选择模式
+ * @param selectedBooks 已选中的书籍ID集合
+ * @param onBookLongClick 书籍长按回调，触发进入选择模式
+ * @param onSelectionChange 选择状态改变回调
  */
 @Composable
 fun BooksList(
     books: List<Book>,
     onBookClick: (String) -> Unit,
+    isSelectionMode: Boolean = false,
+    selectedBooks: Set<String> = emptySet(),
+    onBookLongClick: (String) -> Unit = {},
+    onSelectionChange: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // 获取屏幕配置信息
@@ -1092,7 +1233,23 @@ fun BooksList(
         items(books) { book ->
             BookItem(
                 book = book,
-                onClick = { onBookClick(book.id) }
+                isSelected = selectedBooks.contains(book.id),
+                isSelectionMode = isSelectionMode,
+                onClick = {
+                    if (isSelectionMode) {
+                        // 选择模式下，点击切换选中状态
+                        onSelectionChange(book.id)
+                    } else {
+                        // 正常模式下，进入书籍详情
+                        onBookClick(book.id)
+                    }
+                },
+                onLongClick = {
+                    if (!isSelectionMode) {
+                        // 非选择模式下，长按进入选择模式
+                        onBookLongClick(book.id)
+                    }
+                }
             )
         }
     }
@@ -1101,18 +1258,141 @@ fun BooksList(
 /**
  * 主要内容区域组件
  *
- * 显示应用的主要内容，现在显示书籍列表
+ * 显示应用的主要内容，支持书籍列表的展示和选择管理
  * 
- * @param onBookClick 书籍点击回调
+ * @param onBookClick 书籍点击回调，在非选择模式下触发
+ * @param onSelectionModeChange 选择模式变化回调
  */
 @Composable
 fun MainContent(
     onBookClick: (String) -> Unit,
+    onSelectionModeChange: (Boolean, Int, (() -> Unit)?, (() -> Unit)?) -> Unit = { _, _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     val bookRepository = remember { BookRepository(database.bookDao(), database.chapterDao()) }
+    val scope = rememberCoroutineScope()
+    
+    // ========== 选择模式状态管理 ==========
+    /**
+     * 选择模式状态
+     * true: 处于选择模式，可以多选书籍
+     * false: 正常浏览模式
+     */
+    var isSelectionMode by remember { mutableStateOf(false) }
+    
+    /**
+     * 已选中的书籍ID集合
+     * 使用Set确保ID唯一性，提高查找效率
+     */
+    var selectedBooks by remember { mutableStateOf(setOf<String>()) }
+    
+    /**
+     * 删除确认对话框显示状态
+     */
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    
+    /**
+     * Snackbar状态，用于显示操作结果提示
+     */
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // ========== 选择模式相关函数 ==========
+    /**
+     * 进入选择模式
+     * 
+     * @param bookId 触发长按的书籍ID，自动选中该书籍
+     */
+    val enterSelectionMode: (String) -> Unit = { bookId ->
+        isSelectionMode = true
+        selectedBooks = setOf(bookId)
+    }
+    
+    /**
+     * 退出选择模式
+     * 清空所有选中状态
+     */
+    val exitSelectionMode: () -> Unit = {
+        isSelectionMode = false
+        selectedBooks = setOf()
+    }
+    
+    /**
+     * 切换书籍选中状态
+     * 
+     * @param bookId 要切换选中状态的书籍ID
+     */
+    val toggleBookSelection: (String) -> Unit = { bookId ->
+        selectedBooks = if (selectedBooks.contains(bookId)) {
+            selectedBooks - bookId
+        } else {
+            selectedBooks + bookId
+        }
+    }
+    
+    /**
+     * 删除选中的书籍
+     * 包括数据库记录和本地封面图片文件
+     */
+    val deleteSelectedBooks: () -> Unit = {
+        scope.launch {
+            try {
+                val imageManager = ImageFileManager(context)
+                var successCount = 0
+                var failCount = 0
+                
+                selectedBooks.forEach { bookId ->
+                    try {
+                        // 获取书籍信息以删除封面图片
+                        val book = bookRepository.getBookById(bookId)
+                        if (book?.coverImagePath != null) {
+                            // 删除封面图片文件
+                            imageManager.deleteImage(book.coverImagePath)
+                        }
+                        
+                        // 删除数据库中的书籍记录（会级联删除相关章节）
+                        bookRepository.deleteBookById(bookId)
+                        successCount++
+                    } catch (e: Exception) {
+                        Log.e("BookDeletion", "删除书籍失败: $bookId", e)
+                        failCount++
+                    }
+                }
+                
+                // 显示操作结果
+                val message = if (failCount == 0) {
+                    "成功删除 $successCount 本书籍"
+                } else {
+                    "删除完成：成功 $successCount 本，失败 $failCount 本"
+                }
+                
+                snackbarHostState.showSnackbar(
+                    message = message,
+                    duration = SnackbarDuration.Short
+                )
+                
+                // 退出选择模式
+                exitSelectionMode()
+            } catch (e: Exception) {
+                Log.e("BookDeletion", "删除操作失败", e)
+                snackbarHostState.showSnackbar(
+                    message = "删除失败：${e.message}",
+                    duration = SnackbarDuration.Long
+                )
+            }
+        }
+    }
+    
+    // 通知父组件选择模式的状态变化
+    LaunchedEffect(isSelectionMode, selectedBooks.size) {
+        onSelectionModeChange(
+            isSelectionMode,
+            selectedBooks.size,
+            { showDeleteConfirmDialog = true },
+            exitSelectionMode
+        )
+    }
     
     // 从数据库获取书籍数据
     val bookEntities by bookRepository.getAllBooks().collectAsState(initial = null)
@@ -1168,12 +1448,63 @@ fun MainContent(
         }
         // 有书籍，显示列表
         else -> {
-            BooksList(
-                books = books,
-                onBookClick = onBookClick,
-                modifier = modifier
-            )
+            Box(modifier = modifier.fillMaxSize()) {
+                BooksList(
+                    books = books,
+                    onBookClick = onBookClick,
+                    isSelectionMode = isSelectionMode,
+                    selectedBooks = selectedBooks,
+                    onBookLongClick = enterSelectionMode,
+                    onSelectionChange = toggleBookSelection,
+                    modifier = Modifier.fillMaxSize()
+                )
+                
+                // Snackbar显示在底部
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            }
         }
+    }
+    
+    // ========== 删除确认对话框 ==========
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = {
+                Text(
+                    text = "确认删除",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+            },
+            text = {
+                Text(
+                    text = "确定要删除选中的 ${selectedBooks.size} 本书籍吗？\n此操作不可恢复，书籍内容和封面将被永久删除。",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        deleteSelectedBooks()
+                    }
+                ) {
+                    Text(
+                        text = "删除",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirmDialog = false }
+                ) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 
