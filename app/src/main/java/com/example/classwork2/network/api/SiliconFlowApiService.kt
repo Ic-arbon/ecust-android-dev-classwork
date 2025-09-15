@@ -43,7 +43,7 @@ interface SiliconFlowApiService {
     
     companion object {
         const val BASE_URL = "https://api.siliconflow.cn/"
-        const val DEFAULT_MODEL = "Qwen/QwQ-32B"
+        const val DEFAULT_MODEL = "Qwen/Qwen3-8B"
         
         /**
          * 创建授权头
