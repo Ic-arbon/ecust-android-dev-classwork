@@ -126,9 +126,15 @@ fun EnhancedReaderScreen(
                     chapterContent = chapterEntity.content
                 }
                 
-                // 加载翻译数据
-                loadTranslationData(chapterEntity, textProcessor, gson) { pairs ->
-                    sentencePairs = pairs
+                // 加载翻译数据 - 确保状态更新在主线程中执行
+                if (!chapterContent.isNullOrBlank()) {
+                    val translationPairs = loadTranslationData(chapterEntity, chapterContent, textProcessor, gson)
+                    withContext(Dispatchers.Main) {
+                        sentencePairs = translationPairs
+                        println("=== [EnhancedReaderScreen] 翻译数据加载完成，句子对数量: ${translationPairs.size} ===")
+                    }
+                } else {
+                    println("=== [EnhancedReaderScreen] 章节内容为空，跳过翻译数据加载 ===")
                 }
             }
             
@@ -197,8 +203,13 @@ fun EnhancedReaderScreen(
                             if (isTranslating) {
                                 // 停止翻译（暂时不实现取消功能）
                             } else {
+                                println("=== [EnhancedReaderScreen] 开始翻译 ===")
+                                println("章节内容长度: ${chapterContent?.length ?: 0}")
+                                println("句子对数量: ${sentencePairs.size}")
+                                
                                 startTranslation(
                                     chapterEntity = chapter!!,
+                                    actualContent = chapterContent,
                                     translationService = translationService,
                                     translationSettings = translationSettings,
                                     textProcessor = textProcessor,
@@ -217,7 +228,14 @@ fun EnhancedReaderScreen(
                                 )
                             }
                         },
-                        enabled = !isLoading && chapterContent != null && translationSettings.isApiKeyConfigured()
+                        enabled = !isLoading && chapterContent != null && translationSettings.isApiKeyConfigured().also { configured ->
+                            println("=== [EnhancedReaderScreen] 翻译按钮状态 ===")
+                            println("isLoading: $isLoading")
+                            println("chapterContent != null: ${chapterContent != null}")
+                            println("isApiKeyConfigured: $configured")
+                            println("button enabled: ${!isLoading && chapterContent != null && configured}")
+                            println("sentencePairs.size: ${sentencePairs.size}")
+                        }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Translate,
@@ -418,13 +436,13 @@ fun EnhancedReaderScreen(
 // 辅助函数：加载翻译数据
 private suspend fun loadTranslationData(
     chapterEntity: com.example.classwork2.database.entities.ChapterEntity,
+    actualContent: String?,
     textProcessor: TextProcessor,
-    gson: Gson,
-    onResult: (List<SentencePair>) -> Unit
-) {
+    gson: Gson
+): List<SentencePair> {
     try {
         println("=== [EnhancedReaderScreen] 加载翻译数据 ===")
-        val content = chapterEntity.content ?: return
+        val content = actualContent ?: chapterEntity.content ?: return emptyList()
         println("章节内容长度: ${content.length} 字符")
         println("翻译状态: ${chapterEntity.translationStatus}")
         println("原文句子JSON是否为空: ${chapterEntity.originalSentences.isNullOrEmpty()}")
@@ -465,7 +483,7 @@ private suspend fun loadTranslationData(
             }
             
             println("创建的句子对数量: ${pairs.size}")
-            onResult(pairs)
+            return pairs
         } else {
             // 创建原文句子对
             println("未检测到完整的翻译数据，创建基本句子对")
@@ -484,12 +502,13 @@ private suspend fun loadTranslationData(
             }
             
             println("创建的基本句子对数量: ${pairs.size}")
-            onResult(pairs)
+            return pairs
         }
     } catch (e: Exception) {
         // 出错时创建基本的句子对
         println("[EnhancedReaderScreen] 加载翻译数据失败: ${e.message}")
-        val sentences = textProcessor.splitIntoSentences(chapterEntity.content ?: "")
+        val content = actualContent ?: chapterEntity.content ?: ""
+        val sentences = textProcessor.splitIntoSentences(content)
         val pairs = sentences.map { sentence ->
             SentencePair(
                 original = sentence,
@@ -499,14 +518,16 @@ private suspend fun loadTranslationData(
             )
         }
         println("在异常处理中创建 ${pairs.size} 个基本句子对")
-        onResult(pairs)
+        return pairs
+    } finally {
+        println("=== [EnhancedReaderScreen] 翻译数据加载完成 ===")
     }
-    println("=== [EnhancedReaderScreen] 翻译数据加载完成 ===")
 }
 
 // 辅助函数：开始翻译
 private fun startTranslation(
     chapterEntity: com.example.classwork2.database.entities.ChapterEntity,
+    actualContent: String?,
     translationService: TranslationService,
     translationSettings: TranslationSettings,
     textProcessor: TextProcessor,
@@ -516,7 +537,8 @@ private fun startTranslation(
     onTranslatingChanged: (Boolean) -> Unit,
     scope: kotlinx.coroutines.CoroutineScope
 ) {
-    val content = chapterEntity.content ?: return
+    val content = actualContent ?: chapterEntity.content ?: return
+    println("=== [startTranslation] 使用内容长度: ${content.length} 字符 ===")
     
     scope.launch {
         onTranslatingChanged(true)
