@@ -48,6 +48,7 @@ fun TranslationSettingsDialog(
     var autoTranslate by remember { mutableStateOf(settings.autoTranslate) }
     var displayMode by remember { mutableStateOf(settings.displayMode) }
     var animationEnabled by remember { mutableStateOf(settings.animationEnabled) }
+    var enableThinking by remember { mutableStateOf(settings.enableThinking) }
     
     var showApiKey by remember { mutableStateOf(false) }
     var isTestingConnection by remember { mutableStateOf(false) }
@@ -368,6 +369,29 @@ fun TranslationSettingsDialog(
                                     onCheckedChange = { animationEnabled = it }
                                 )
                             }
+                            
+                            // AI思维过程开关
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "AI思维过程",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = "启用AI的内部思维过程（禁用可加快翻译速度）",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = enableThinking,
+                                    onCheckedChange = { enableThinking = it }
+                                )
+                            }
                         }
                     }
                 }
@@ -396,6 +420,7 @@ fun TranslationSettingsDialog(
                             settings.autoTranslate = autoTranslate
                             settings.displayMode = displayMode
                             settings.animationEnabled = animationEnabled
+                            settings.enableThinking = enableThinking
                             
                             onSettingsChanged()
                             onDismiss()

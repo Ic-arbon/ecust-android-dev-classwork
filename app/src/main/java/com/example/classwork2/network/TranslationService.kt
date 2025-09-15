@@ -67,12 +67,14 @@ class TranslationService {
      * @param originalText 原始文本
      * @param apiKey API密钥
      * @param targetLanguage 目标语言（默认中文）
+     * @param enableThinking 是否启用AI思维过程（默认false，禁用以加快翻译速度）
      * @return 翻译状态流
      */
     fun translateTextStream(
         originalText: String,
         apiKey: String,
-        targetLanguage: String = "中文"
+        targetLanguage: String = "中文",
+        enableThinking: Boolean = false
     ): Flow<TranslationState> = flow {
         try {
             // 1. 分割原文为句子
@@ -94,7 +96,8 @@ class TranslationService {
                 ),
                 stream = true,
                 temperature = 0.3,
-                maxTokens = originalText.length * 3 // 增加预估译文长度，确保有足够空间完成翻译
+                maxTokens = originalText.length * 3, // 增加预估译文长度，确保有足够空间完成翻译
+                enableThinking = enableThinking // 使用传入的设置参数
             )
             
             // 4. 发送流式请求
@@ -308,8 +311,8 @@ class TranslationService {
 
 1. 必须翻译所有${sentences.size}句，保持原文的句子顺序和数量
 2. 每个译文句子前加上序号，格式为"1. 译文内容"
-3. 保持原文的语调和文学性
-4. 确保翻译准确、流畅、自然
+3. 保持原文的氛围感和文学性
+4. 确保专业术语的准确性
 5. 请完整翻译所有句子，不要遗漏
 
 原文如下：
@@ -410,7 +413,8 @@ $numberedSentences
                     ChatMessage("user", "测试")
                 ),
                 stream = false,
-                maxTokens = 10
+                maxTokens = 10,
+                enableThinking = false // 测试连接时也禁用思维过程
             )
             
             val response = apiService.chatCompletion(

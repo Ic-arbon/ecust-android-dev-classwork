@@ -552,7 +552,8 @@ private fun startTranslation(
             translationService.translateTextStream(
                 originalText = content,
                 apiKey = translationSettings.apiKey,
-                targetLanguage = translationSettings.targetLanguage
+                targetLanguage = translationSettings.targetLanguage,
+                enableThinking = translationSettings.enableThinking
             ).collect { state ->
                 // 确保UI状态更新在主线程
                 withContext(Dispatchers.Main) {

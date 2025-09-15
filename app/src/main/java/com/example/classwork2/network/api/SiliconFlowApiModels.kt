@@ -19,7 +19,9 @@ data class ChatCompletionRequest(
     @SerializedName("max_tokens")
     val maxTokens: Int? = null,
     @SerializedName("temperature")
-    val temperature: Double? = null
+    val temperature: Double? = null,
+    @SerializedName("enable_thinking")
+    val enableThinking: Boolean? = null
 )
 
 /**

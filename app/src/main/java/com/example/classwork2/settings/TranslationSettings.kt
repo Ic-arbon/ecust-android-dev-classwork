@@ -24,6 +24,7 @@ class TranslationSettings(context: Context) {
         private const val KEY_AUTO_TRANSLATE = "auto_translate"
         private const val KEY_DISPLAY_MODE = "display_mode"
         private const val KEY_ANIMATION_ENABLED = "animation_enabled"
+        private const val KEY_ENABLE_THINKING = "enable_thinking"
         
         // 默认值
         private const val DEFAULT_TARGET_LANGUAGE = "中文"
@@ -32,6 +33,7 @@ class TranslationSettings(context: Context) {
         private val DEFAULT_DISPLAY_MODE = DisplayMode.BILINGUAL
         private const val DEFAULT_AUTO_TRANSLATE = false
         private const val DEFAULT_ANIMATION_ENABLED = true
+        private const val DEFAULT_ENABLE_THINKING = false // 默认禁用思维过程以加快翻译速度
     }
     
     /**
@@ -85,6 +87,13 @@ class TranslationSettings(context: Context) {
     var animationEnabled: Boolean
         get() = prefs.getBoolean(KEY_ANIMATION_ENABLED, DEFAULT_ANIMATION_ENABLED)
         set(value) = prefs.edit().putBoolean(KEY_ANIMATION_ENABLED, value).apply()
+    
+    /**
+     * 是否启用AI思维过程（禁用可加快翻译速度）
+     */
+    var enableThinking: Boolean
+        get() = prefs.getBoolean(KEY_ENABLE_THINKING, DEFAULT_ENABLE_THINKING)
+        set(value) = prefs.edit().putBoolean(KEY_ENABLE_THINKING, value).apply()
     
     /**
      * 检查是否已配置API密钥
