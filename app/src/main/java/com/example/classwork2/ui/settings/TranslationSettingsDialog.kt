@@ -50,6 +50,7 @@ fun TranslationSettingsDialog(
     var displayMode by remember { mutableStateOf(settings.displayMode) }
     var animationEnabled by remember { mutableStateOf(settings.animationEnabled) }
     var enableThinking by remember { mutableStateOf(settings.enableThinking) }
+    var disableCache by remember { mutableStateOf(settings.disableCache) }
     
     var showApiKey by remember { mutableStateOf(false) }
     var isTestingConnection by remember { mutableStateOf(false) }
@@ -393,6 +394,29 @@ fun TranslationSettingsDialog(
                                     onCheckedChange = { enableThinking = it }
                                 )
                             }
+                            
+                            // 禁用缓存开关
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "禁用译文缓存",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = "启用后每次使用翻译前都清理缓存从新翻译",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = disableCache,
+                                    onCheckedChange = { disableCache = it }
+                                )
+                            }
                         }
                     }
                 }
@@ -422,6 +446,7 @@ fun TranslationSettingsDialog(
                             settings.displayMode = displayMode
                             settings.animationEnabled = animationEnabled
                             settings.enableThinking = enableThinking
+                            settings.disableCache = disableCache
                             
                             onSettingsChanged()
                             onDismiss()

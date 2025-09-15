@@ -131,7 +131,7 @@ fun EnhancedReaderScreen(
                 
                 // 加载翻译数据 - 确保状态更新在主线程中执行
                 if (!chapterContent.isNullOrBlank()) {
-                    val translationPairs = loadTranslationData(chapterEntity, chapterContent, textProcessor, gson)
+                    val translationPairs = loadTranslationData(chapterEntity, chapterContent, textProcessor, gson, translationSettings)
                     withContext(Dispatchers.Main) {
                         sentencePairs = translationPairs
                         // 如果已有翻译内容，默认启用翻译显示
@@ -457,13 +457,15 @@ private suspend fun loadTranslationData(
     chapterEntity: com.example.classwork2.database.entities.ChapterEntity,
     actualContent: String?,
     textProcessor: TextProcessor,
-    gson: Gson
+    gson: Gson,
+    translationSettings: TranslationSettings
 ): List<SentencePair> {
     try {
         val content = actualContent ?: chapterEntity.content ?: return emptyList()
         
-        // 如果已有翻译数据，加载它
-        if (chapterEntity.translationStatus == TranslationStatus.COMPLETED &&
+        // 如果已有翻译数据且未禁用缓存，加载它
+        if (!translationSettings.disableCache &&
+            chapterEntity.translationStatus == TranslationStatus.COMPLETED &&
             !chapterEntity.originalSentences.isNullOrEmpty() &&
             !chapterEntity.translatedSentences.isNullOrEmpty()) {
             
@@ -543,6 +545,13 @@ private fun startTranslation(
         onTranslatingChanged(true)
         
         try {
+            // 如果禁用缓存，清理之前的翻译数据
+            if (translationSettings.disableCache) {
+                withContext(Dispatchers.IO) {
+                    database.chapterDao().clearTranslationData(chapterEntity.id)
+                }
+            }
+            
             // 更新数据库状态为翻译中
             withContext(Dispatchers.IO) {
                 database.chapterDao().updateTranslationStatus(chapterEntity.id, TranslationStatus.TRANSLATING)
