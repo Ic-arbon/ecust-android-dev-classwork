@@ -169,6 +169,9 @@ class MainActivity : ComponentActivity() {
                             },
                             onImportClick = {
                                 navController.navigate("import_book")
+                            },
+                            onReaderNavigation = { bookId, chapterId ->
+                                navController.navigate("reader/$bookId/$chapterId")
                             }
                         )
                     }
@@ -179,6 +182,27 @@ class MainActivity : ComponentActivity() {
                             },
                             onBookImported = {
                                 navController.popBackStack()
+                            }
+                        )
+                    }
+                    // 阅读界面路由 - 独立全屏布局，不包含抽屉导航
+                    composable("reader/{bookId}/{chapterId}") { backStackEntry ->
+                        val bookId = backStackEntry.arguments?.getString("bookId") ?: ""
+                        val chapterId = backStackEntry.arguments?.getString("chapterId") ?: ""
+                        EnhancedReaderScreen(
+                            bookId = bookId,
+                            chapterId = chapterId,
+                            onBackClick = {
+                                navController.popBackStack()
+                            },
+                            onNavigateToChapter = { _, newChapterId ->
+                                // 导航到新章节，替换当前页面
+                                navController.navigate("reader/$bookId/$newChapterId") {
+                                    // 替换当前页面，避免堆栈过深
+                                    popUpTo("reader/$bookId/$chapterId") {
+                                        inclusive = true
+                                    }
+                                }
                             }
                         )
                     }
@@ -206,6 +230,7 @@ fun MainScreenWithDrawer(
     userInfoManager: UserInfoManager,
     onLogout: () -> Unit,
     onImportClick: () -> Unit,
+    onReaderNavigation: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     // 抽屉状态管理
@@ -273,6 +298,7 @@ fun MainScreenWithDrawer(
         ) { paddingValues ->
             // 主要内容区域
             AppNavigation(
+                onReaderNavigation = onReaderNavigation,
                 modifier = Modifier.fillMaxSize().padding(paddingValues)
             )
         }
@@ -998,7 +1024,10 @@ fun BookItem(
  * 管理应用的整体导航流程
  */
 @Composable
-fun AppNavigation(modifier: Modifier = Modifier) {
+fun AppNavigation(
+    onReaderNavigation: (String, String) -> Unit = { _, _ -> },
+    modifier: Modifier = Modifier
+) {
     val navController = rememberNavController()
     
     NavHost(
@@ -1021,27 +1050,8 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                     navController.popBackStack()
                 },
                 onChapterClick = { _, chapterId ->
-                    navController.navigate("reader/$bookId/$chapterId")
-                }
-            )
-        }
-        composable("reader/{bookId}/{chapterId}") { backStackEntry ->
-            val bookId = backStackEntry.arguments?.getString("bookId") ?: ""
-            val chapterId = backStackEntry.arguments?.getString("chapterId") ?: ""
-            EnhancedReaderScreen(
-                bookId = bookId,
-                chapterId = chapterId,
-                onBackClick = {
-                    navController.popBackStack()
-                },
-                onNavigateToChapter = { _, newChapterId ->
-                    // 导航到新章节，替换当前页面
-                    navController.navigate("reader/$bookId/$newChapterId") {
-                        // 替换当前页面，避免堆栈过深
-                        popUpTo("reader/$bookId/$chapterId") {
-                            inclusive = true
-                        }
-                    }
+                    // 使用外层导航进入全屏阅读模式
+                    onReaderNavigation(bookId, chapterId)
                 }
             )
         }
