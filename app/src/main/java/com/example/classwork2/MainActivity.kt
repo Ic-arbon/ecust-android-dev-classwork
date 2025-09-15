@@ -67,6 +67,7 @@ import com.example.classwork2.network.SimpleCancellationToken
 import com.example.classwork2.ui.components.FullscreenImageViewer
 import com.example.classwork2.ui.components.CoverEditDialog
 import com.example.classwork2.ui.components.SmartImage
+import com.example.classwork2.ui.reader.EnhancedReaderScreen
 import com.example.classwork2.utils.ImageFileManager
 import com.example.classwork2.network.NarouContentParser
 import kotlinx.coroutines.launch
@@ -1027,7 +1028,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
         composable("reader/{bookId}/{chapterId}") { backStackEntry ->
             val bookId = backStackEntry.arguments?.getString("bookId") ?: ""
             val chapterId = backStackEntry.arguments?.getString("chapterId") ?: ""
-            ReaderScreen(
+            EnhancedReaderScreen(
                 bookId = bookId,
                 chapterId = chapterId,
                 onBackClick = {

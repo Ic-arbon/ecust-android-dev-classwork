@@ -21,6 +21,10 @@ import androidx.room.PrimaryKey
  * @param chapterOrder 章节全局序号
  * @param content 章节正文内容（可选，按需加载）
  * @param url 章节原始URL（可选，用于获取章节内容）
+ * @param translatedContent 翻译后的章节内容（可选）
+ * @param originalSentences 原文句子列表（JSON格式，可选）
+ * @param translatedSentences 译文句子列表（JSON格式，可选）
+ * @param translationStatus 翻译状态（0: 未翻译，1: 翻译中，2: 已完成）
  */
 @Entity(
     tableName = "chapters",
@@ -45,5 +49,9 @@ data class ChapterEntity(
     val subOrder: Int? = null,
     val chapterOrder: Int = 0,
     val content: String? = null,
-    val url: String? = null
+    val url: String? = null,
+    val translatedContent: String? = null,
+    val originalSentences: String? = null, // JSON格式的字符串列表
+    val translatedSentences: String? = null, // JSON格式的字符串列表  
+    val translationStatus: Int = 0 // 0: 未翻译，1: 翻译中，2: 已完成
 )

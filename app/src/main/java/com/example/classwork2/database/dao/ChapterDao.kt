@@ -84,4 +84,86 @@ interface ChapterDao {
      */
     @Query("SELECT CASE WHEN content IS NOT NULL AND content != '' THEN 1 ELSE 0 END FROM chapters WHERE id = :chapterId")
     suspend fun hasChapterContent(chapterId: String): Boolean
+    
+    // ========== 翻译相关方法 ==========
+    
+    /**
+     * 更新章节翻译内容
+     */
+    @Query("UPDATE chapters SET translatedContent = :translatedContent WHERE id = :chapterId")
+    suspend fun updateChapterTranslation(chapterId: String, translatedContent: String)
+    
+    /**
+     * 更新章节翻译状态
+     */
+    @Query("UPDATE chapters SET translationStatus = :status WHERE id = :chapterId")
+    suspend fun updateTranslationStatus(chapterId: String, status: Int)
+    
+    /**
+     * 更新章节原文句子列表
+     */
+    @Query("UPDATE chapters SET originalSentences = :originalSentences WHERE id = :chapterId")
+    suspend fun updateOriginalSentences(chapterId: String, originalSentences: String)
+    
+    /**
+     * 更新章节译文句子列表
+     */
+    @Query("UPDATE chapters SET translatedSentences = :translatedSentences WHERE id = :chapterId")
+    suspend fun updateTranslatedSentences(chapterId: String, translatedSentences: String)
+    
+    /**
+     * 批量更新翻译数据
+     */
+    @Query("""
+        UPDATE chapters 
+        SET translatedContent = :translatedContent,
+            originalSentences = :originalSentences,
+            translatedSentences = :translatedSentences,
+            translationStatus = :status
+        WHERE id = :chapterId
+    """)
+    suspend fun updateTranslationData(
+        chapterId: String,
+        translatedContent: String?,
+        originalSentences: String?,
+        translatedSentences: String?,
+        status: Int
+    )
+    
+    /**
+     * 检查章节是否已有翻译
+     */
+    @Query("SELECT CASE WHEN translationStatus = 2 AND translatedContent IS NOT NULL THEN 1 ELSE 0 END FROM chapters WHERE id = :chapterId")
+    suspend fun hasChapterTranslation(chapterId: String): Boolean
+    
+    /**
+     * 获取章节翻译状态
+     */
+    @Query("SELECT translationStatus FROM chapters WHERE id = :chapterId")
+    suspend fun getTranslationStatus(chapterId: String): Int?
+    
+    /**
+     * 清除章节翻译数据
+     */
+    @Query("""
+        UPDATE chapters 
+        SET translatedContent = NULL,
+            originalSentences = NULL,
+            translatedSentences = NULL,
+            translationStatus = 0
+        WHERE id = :chapterId
+    """)
+    suspend fun clearTranslationData(chapterId: String)
+    
+    /**
+     * 获取指定书籍中已翻译的章节数量
+     */
+    @Query("SELECT COUNT(*) FROM chapters WHERE bookId = :bookId AND translationStatus = 2")
+    suspend fun getTranslatedChapterCount(bookId: String): Int
+    
+    /**
+     * 获取指定书籍的章节总数
+     */
+    @Query("SELECT COUNT(*) FROM chapters WHERE bookId = :bookId")
+    suspend fun getTotalChapterCount(bookId: String): Int
 }
