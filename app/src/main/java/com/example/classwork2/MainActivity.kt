@@ -6,6 +6,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -548,6 +549,11 @@ fun BookDetailScreen(
         showCoverEditDialog = false
         // 执行返回操作
         onBackClick()
+    }
+    
+    // 使用BackHandler拦截所有返回操作（包括手势导航）
+    BackHandler(enabled = isPageActive) {
+        handleBackClick()
     }
     
     // 折叠状态管理：使用卷标题作为键，存储每个卷的展开/折叠状态
@@ -1464,47 +1470,47 @@ fun MainContent(
                     hostState = snackbarHostState,
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
-            }
-        }
-    }
-    
-    // ========== 删除确认对话框 ==========
-    if (showDeleteConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            title = {
-                Text(
-                    text = "确认删除",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-            },
-            text = {
-                Text(
-                    text = "确定要删除选中的 ${selectedBooks.size} 本书籍吗？\n此操作不可恢复，书籍内容和封面将被永久删除。",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirmDialog = false
-                        deleteSelectedBooks()
-                    }
-                ) {
-                    Text(
-                        text = "删除",
-                        color = MaterialTheme.colorScheme.error
+                
+                // ========== 删除确认对话框 ==========
+                if (showDeleteConfirmDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteConfirmDialog = false },
+                        title = {
+                            Text(
+                                text = "确认删除",
+                                style = MaterialTheme.typography.headlineSmall
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = "确定要删除选中的 ${selectedBooks.size} 本书籍吗？\n此操作不可恢复，书籍内容和封面将被永久删除。",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showDeleteConfirmDialog = false
+                                    deleteSelectedBooks()
+                                }
+                            ) {
+                                Text(
+                                    text = "删除",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = { showDeleteConfirmDialog = false }
+                            ) {
+                                Text("取消")
+                            }
+                        }
                     )
                 }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showDeleteConfirmDialog = false }
-                ) {
-                    Text("取消")
-                }
             }
-        )
+        }
     }
 }
 
