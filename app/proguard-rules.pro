@@ -19,3 +19,32 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Retrofit 2.X
+-dontwarn retrofit2.**
+-keep class retrofit2.** { *; }
+-keepattributes Signature
+-keepattributes Exceptions
+
+# OkHttp3
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+
+# Gson
+-dontwarn com.google.gson.**
+-keep class com.google.gson.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.google.gson.stream.** { *; }
+
+# Keep data model classes for network APIs
+-keep class com.example.classwork2.network.api.** { *; }
+
+# JSoup
+-keep class org.jsoup.** { *; }
+-dontwarn org.jsoup.**
+
+# Keep reflection-based serialization working
+-keepattributes *Annotation*,Signature,Exception
