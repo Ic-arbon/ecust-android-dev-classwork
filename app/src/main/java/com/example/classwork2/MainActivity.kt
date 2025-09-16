@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -1130,24 +1131,37 @@ fun BookItem(
             }
         }
         
-        // 选择模式下显示复选框
+        // 选择模式下显示圆形选中框
         if (isSelectionMode) {
-            Checkbox(
-                checked = isSelected,
-                onCheckedChange = null, // 由onClick处理
+            Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
+                    .size(24.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                        },
                         shape = CircleShape
                     )
-                    .padding(2.dp),
-                colors = CheckboxDefaults.colors(
-                    checkedColor = MaterialTheme.colorScheme.primary,
-                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            )
+                    .border(
+                        width = if (isSelected) 0.dp else 2.dp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "已选中",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }
