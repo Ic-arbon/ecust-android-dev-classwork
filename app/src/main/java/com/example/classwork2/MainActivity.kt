@@ -201,7 +201,25 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     // 阅读界面路由 - 独立全屏布局，不包含抽屉导航
-                    composable("reader/{bookId}/{chapterId}") { backStackEntry ->
+                    composable(
+                        "reader/{bookId}/{chapterId}?direction={direction}",
+                        enterTransition = {
+                            val direction = targetState.arguments?.getString("direction")
+                            when (direction) {
+                                "next" -> slideInHorizontally(initialOffsetX = { it }) // 下一章从右滑入
+                                "prev" -> slideInHorizontally(initialOffsetX = { -it }) // 上一章从左滑入
+                                else -> slideInHorizontally(initialOffsetX = { it }) // 默认从右滑入
+                            }
+                        },
+                        exitTransition = {
+                            val direction = targetState.arguments?.getString("direction")
+                            when (direction) {
+                                "next" -> slideOutHorizontally(targetOffsetX = { -it }) // 下一章向左滑出
+                                "prev" -> slideOutHorizontally(targetOffsetX = { it }) // 上一章向右滑出
+                                else -> slideOutHorizontally(targetOffsetX = { -it }) // 默认向左滑出
+                            }
+                        }
+                    ) { backStackEntry ->
                         val bookId = backStackEntry.arguments?.getString("bookId") ?: ""
                         val chapterId = backStackEntry.arguments?.getString("chapterId") ?: ""
                         EnhancedReaderScreen(
@@ -210,11 +228,12 @@ class MainActivity : ComponentActivity() {
                             onBackClick = {
                                 navController.popBackStack()
                             },
-                            onNavigateToChapter = { _, newChapterId ->
-                                // 导航到新章节，替换当前页面
-                                navController.navigate("reader/$bookId/$newChapterId") {
+                            onNavigateToChapter = { _, newChapterId, isNext ->
+                                // 导航到新章节，添加方向参数
+                                val direction = if (isNext) "next" else "prev"
+                                navController.navigate("reader/$bookId/$newChapterId?direction=$direction") {
                                     // 替换当前页面，避免堆栈过深
-                                    popUpTo("reader/$bookId/$chapterId") {
+                                    popUpTo("reader/{bookId}/{chapterId}") {
                                         inclusive = true
                                     }
                                 }

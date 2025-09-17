@@ -52,7 +52,7 @@ fun EnhancedReaderScreen(
     bookId: String,
     chapterId: String,
     onBackClick: () -> Unit,
-    onNavigateToChapter: (String, String) -> Unit = { _, _ -> },
+    onNavigateToChapter: (String, String, Boolean) -> Unit = { _, _, _ -> }, // 第三个参数表示是否为下一章
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -282,7 +282,7 @@ fun EnhancedReaderScreen(
                             onClick = {
                                 if (hasPrevChapter) {
                                     val prevChapter = allChapters.value[currentChapterIndex - 1]
-                                    onNavigateToChapter(bookId, prevChapter.id)
+                                    onNavigateToChapter(bookId, prevChapter.id, false) // false表示上一章
                                 }
                             },
                             enabled = hasPrevChapter,
@@ -303,7 +303,7 @@ fun EnhancedReaderScreen(
                             onClick = {
                                 if (hasNextChapter) {
                                     val nextChapter = allChapters.value[currentChapterIndex + 1]
-                                    onNavigateToChapter(bookId, nextChapter.id)
+                                    onNavigateToChapter(bookId, nextChapter.id, true) // true表示下一章
                                 }
                             },
                             enabled = hasNextChapter,
