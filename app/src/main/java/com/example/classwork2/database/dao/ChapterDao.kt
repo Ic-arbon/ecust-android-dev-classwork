@@ -74,10 +74,12 @@ interface ChapterDao {
     suspend fun deleteAllChapters()
     
     /**
-     * 更新章节内容
+     * 更新章节内容（不修改更新时间）
+     * 用于从网络下载章节内容，不应该改变章节的原始更新时间
      */
-    @Query("UPDATE chapters SET content = :content, updateTime = :updateTime WHERE id = :chapterId")
-    suspend fun updateChapterContent(chapterId: String, content: String, updateTime: Long = System.currentTimeMillis())
+    @Query("UPDATE chapters SET content = :content WHERE id = :chapterId")
+    suspend fun updateChapterContent(chapterId: String, content: String)
+    
     
     /**
      * 检查章节是否已有内容
@@ -88,10 +90,12 @@ interface ChapterDao {
     // ========== 翻译相关方法 ==========
     
     /**
-     * 更新章节翻译内容
+     * 更新章节翻译内容（不修改更新时间）
+     * 用于自动翻译等不应改变原始更新时间的场景
      */
-    @Query("UPDATE chapters SET translatedContent = :translatedContent, updateTime = :updateTime WHERE id = :chapterId")
-    suspend fun updateChapterTranslation(chapterId: String, translatedContent: String, updateTime: Long = System.currentTimeMillis())
+    @Query("UPDATE chapters SET translatedContent = :translatedContent WHERE id = :chapterId")
+    suspend fun updateChapterTranslation(chapterId: String, translatedContent: String)
+    
     
     /**
      * 更新章节翻译状态
@@ -112,15 +116,14 @@ interface ChapterDao {
     suspend fun updateTranslatedSentences(chapterId: String, translatedSentences: String)
     
     /**
-     * 批量更新翻译数据
+     * 批量更新翻译数据（不修改章节投稿时间）
      */
     @Query("""
         UPDATE chapters 
         SET translatedContent = :translatedContent,
             originalSentences = :originalSentences,
             translatedSentences = :translatedSentences,
-            translationStatus = :status,
-            updateTime = :updateTime
+            translationStatus = :status
         WHERE id = :chapterId
     """)
     suspend fun updateTranslationData(
@@ -128,8 +131,7 @@ interface ChapterDao {
         translatedContent: String?,
         originalSentences: String?,
         translatedSentences: String?,
-        status: Int,
-        updateTime: Long = System.currentTimeMillis()
+        status: Int
     )
     
     /**

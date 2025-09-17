@@ -114,7 +114,8 @@ object DataConverter {
             volumeTitle = entity.volumeTitle,
             volumeOrder = entity.volumeOrder,
             subOrder = entity.subOrder,
-            chapterOrder = entity.chapterOrder
+            chapterOrder = entity.chapterOrder,
+            updateTime = entity.updateTime
         )
     }
     

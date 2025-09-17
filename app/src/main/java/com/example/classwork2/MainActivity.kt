@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.LaunchedEffect
@@ -79,8 +80,10 @@ import com.example.classwork2.ui.components.FullscreenImageViewer
 import com.example.classwork2.ui.components.CoverEditDialog
 import com.example.classwork2.ui.components.SmartImage
 import com.example.classwork2.ui.reader.EnhancedReaderScreen
+import com.example.classwork2.ui.stats.ChapterPublishStatsScreen
 import com.example.classwork2.utils.ImageFileManager
 import com.example.classwork2.network.NarouContentParser
+import com.example.classwork2.utils.DateFormatter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import androidx.compose.ui.unit.sp
@@ -95,6 +98,7 @@ import androidx.compose.ui.unit.sp
  * @param volumeOrder 卷序号（可选）
  * @param subOrder 卷内序号（可选）
  * @param chapterOrder 章节全局序号
+ * @param updateTime 章节更新时间（毫秒时间戳）
  */
 data class Chapter(
     val id: String,
@@ -103,7 +107,8 @@ data class Chapter(
     val volumeTitle: String? = null,
     val volumeOrder: Int? = null,
     val subOrder: Int? = null,
-    val chapterOrder: Int = 0
+    val chapterOrder: Int = 0,
+    val updateTime: Long = System.currentTimeMillis()
 )
 
 /**
@@ -549,6 +554,7 @@ fun BookDetailScreen(
     bookId: String,
     onBackClick: () -> Unit,
     onChapterClick: (String, String) -> Unit = { _, _ -> }, // (bookId, chapterId) -> Unit
+    onStatsClick: (String) -> Unit = { _ -> }, // (bookId) -> Unit
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -690,6 +696,18 @@ fun BookDetailScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回"
+                        )
+                    }
+                },
+                actions = {
+                    // 投稿时间统计按钮
+                    IconButton(
+                        onClick = { onStatsClick(bookId) }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Analytics,
+                            contentDescription = "投稿时间统计",
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -942,23 +960,35 @@ fun BookDetailScreen(
                             ),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                         ) {
-                            Row(
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(16.dp)
                             ) {
-                                // 显示全局序号
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 显示全局序号
+                                    Text(
+                                        text = "${chapter.chapterOrder}.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
+                                    Text(
+                                        text = chapter.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                // 显示更新日期
                                 Text(
-                                    text = "${chapter.chapterOrder}.",
+                                    text = "更新: ${DateFormatter.formatSmartDateTime(chapter.updateTime)}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(end = 8.dp)
-                                )
-                                Text(
-                                    text = chapter.title,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp, start = 24.dp)
                                 )
                             }
                         }
@@ -979,16 +1009,22 @@ fun BookDetailScreen(
                         ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(16.dp)
                         ) {
                             Text(
                                 text = chapter.title,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
+                            )
+                            // 显示更新日期
+                            Text(
+                                text = "更新: ${DateFormatter.formatSmartDateTime(chapter.updateTime)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp)
                             )
                         }
                     }
@@ -1233,6 +1269,18 @@ fun AppNavigation(
                 onChapterClick = { _, chapterId ->
                     // 使用外层导航进入全屏阅读模式
                     onReaderNavigation(bookId, chapterId)
+                },
+                onStatsClick = { statsBookId ->
+                    navController.navigate("chapter_stats/$statsBookId")
+                }
+            )
+        }
+        composable("chapter_stats/{bookId}") { backStackEntry ->
+            val bookId = backStackEntry.arguments?.getString("bookId") ?: ""
+            ChapterPublishStatsScreen(
+                bookId = bookId,
+                onBackClick = {
+                    navController.popBackStack()
                 }
             )
         }
