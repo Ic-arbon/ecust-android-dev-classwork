@@ -87,7 +87,7 @@ object DataConverter {
     /**
      * Chapter转换为ChapterEntity
      */
-    fun chapterToEntity(chapter: Chapter, bookId: String, content: String? = null, url: String? = null): ChapterEntity {
+    fun chapterToEntity(chapter: Chapter, bookId: String, content: String? = null, url: String? = null, updateTime: Long = System.currentTimeMillis()): ChapterEntity {
         return ChapterEntity(
             id = chapter.id,
             bookId = bookId,
@@ -98,7 +98,8 @@ object DataConverter {
             subOrder = chapter.subOrder,
             chapterOrder = chapter.chapterOrder,
             content = content,
-            url = url
+            url = url,
+            updateTime = updateTime
         )
     }
     
@@ -170,7 +171,8 @@ object DataConverter {
             subOrder = chapterInfo.subOrder,
             chapterOrder = chapterInfo.order, // 直接使用ChapterInfo中的真实序号
             content = null, // 初始时内容为空
-            url = chapterInfo.url
+            url = chapterInfo.url,
+            updateTime = chapterInfo.publishTime // 使用解析得到的更新时间
         )
     }
     

@@ -385,13 +385,32 @@ class NarouContentParser {
             
             if (matchResult != null) {
                 val timeString = matchResult.groupValues[1]
-                // 这里可以实现更精确的时间解析
-                // 为了简化，暂时返回当前时间
-                System.currentTimeMillis()
-            } else {
-                System.currentTimeMillis()
+                // 解析时间字符串为时间戳
+                val parts = timeString.split(" ")
+                if (parts.size == 2) {
+                    val dateParts = parts[0].split("/")
+                    val timeParts = parts[1].split(":")
+                    
+                    if (dateParts.size == 3 && timeParts.size == 2) {
+                        val year = dateParts[0].toInt()
+                        val month = dateParts[1].toInt() - 1 // Calendar中月份从0开始
+                        val day = dateParts[2].toInt()
+                        val hour = timeParts[0].toInt()
+                        val minute = timeParts[1].toInt()
+                        
+                        val calendar = java.util.Calendar.getInstance()
+                        calendar.set(year, month, day, hour, minute, 0)
+                        calendar.set(java.util.Calendar.MILLISECOND, 0)
+                        
+                        return calendar.timeInMillis
+                    }
+                }
             }
+            
+            // 如果解析失败，返回当前时间
+            System.currentTimeMillis()
         } catch (e: Exception) {
+            println("解析更新时间失败: $timeText, ${e.message}")
             System.currentTimeMillis()
         }
     }

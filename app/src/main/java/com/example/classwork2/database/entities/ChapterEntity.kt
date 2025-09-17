@@ -25,6 +25,7 @@ import androidx.room.PrimaryKey
  * @param originalSentences 原文句子列表（JSON格式，可选）
  * @param translatedSentences 译文句子列表（JSON格式，可选）
  * @param translationStatus 翻译状态（0: 未翻译，1: 翻译中，2: 已完成）
+ * @param updateTime 章节更新时间（时间戳）
  */
 @Entity(
     tableName = "chapters",
@@ -53,5 +54,6 @@ data class ChapterEntity(
     val translatedContent: String? = null,
     val originalSentences: String? = null, // JSON格式的字符串列表
     val translatedSentences: String? = null, // JSON格式的字符串列表  
-    val translationStatus: Int = 0 // 0: 未翻译，1: 翻译中，2: 已完成
+    val translationStatus: Int = 0, // 0: 未翻译，1: 翻译中，2: 已完成
+    val updateTime: Long = System.currentTimeMillis() // 章节更新时间（时间戳）
 )

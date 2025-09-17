@@ -76,8 +76,8 @@ interface ChapterDao {
     /**
      * 更新章节内容
      */
-    @Query("UPDATE chapters SET content = :content WHERE id = :chapterId")
-    suspend fun updateChapterContent(chapterId: String, content: String)
+    @Query("UPDATE chapters SET content = :content, updateTime = :updateTime WHERE id = :chapterId")
+    suspend fun updateChapterContent(chapterId: String, content: String, updateTime: Long = System.currentTimeMillis())
     
     /**
      * 检查章节是否已有内容
@@ -90,8 +90,8 @@ interface ChapterDao {
     /**
      * 更新章节翻译内容
      */
-    @Query("UPDATE chapters SET translatedContent = :translatedContent WHERE id = :chapterId")
-    suspend fun updateChapterTranslation(chapterId: String, translatedContent: String)
+    @Query("UPDATE chapters SET translatedContent = :translatedContent, updateTime = :updateTime WHERE id = :chapterId")
+    suspend fun updateChapterTranslation(chapterId: String, translatedContent: String, updateTime: Long = System.currentTimeMillis())
     
     /**
      * 更新章节翻译状态
@@ -119,7 +119,8 @@ interface ChapterDao {
         SET translatedContent = :translatedContent,
             originalSentences = :originalSentences,
             translatedSentences = :translatedSentences,
-            translationStatus = :status
+            translationStatus = :status,
+            updateTime = :updateTime
         WHERE id = :chapterId
     """)
     suspend fun updateTranslationData(
@@ -127,7 +128,8 @@ interface ChapterDao {
         translatedContent: String?,
         originalSentences: String?,
         translatedSentences: String?,
-        status: Int
+        status: Int,
+        updateTime: Long = System.currentTimeMillis()
     )
     
     /**
@@ -166,4 +168,30 @@ interface ChapterDao {
      */
     @Query("SELECT COUNT(*) FROM chapters WHERE bookId = :bookId")
     suspend fun getTotalChapterCount(bookId: String): Int
+    
+    // ========== 更新时间相关方法 ==========
+    
+    /**
+     * 更新章节的更新时间
+     */
+    @Query("UPDATE chapters SET updateTime = :updateTime WHERE id = :chapterId")
+    suspend fun updateChapterTime(chapterId: String, updateTime: Long = System.currentTimeMillis())
+    
+    /**
+     * 获取指定书籍的章节，按更新时间倒序排列
+     */
+    @Query("SELECT * FROM chapters WHERE bookId = :bookId ORDER BY updateTime DESC")
+    fun getChaptersByBookIdOrderByUpdateTime(bookId: String): Flow<List<ChapterEntity>>
+    
+    /**
+     * 获取最近更新的章节
+     */
+    @Query("SELECT * FROM chapters ORDER BY updateTime DESC LIMIT :limit")
+    fun getRecentlyUpdatedChapters(limit: Int = 10): Flow<List<ChapterEntity>>
+    
+    /**
+     * 获取指定时间之后更新的章节
+     */
+    @Query("SELECT * FROM chapters WHERE updateTime > :timestamp ORDER BY updateTime DESC")
+    fun getChaptersUpdatedAfter(timestamp: Long): Flow<List<ChapterEntity>>
 }

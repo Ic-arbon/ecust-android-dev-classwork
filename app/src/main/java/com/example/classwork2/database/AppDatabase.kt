@@ -19,7 +19,7 @@ import com.example.classwork2.database.entities.UserEntity
  * 使用Room框架管理SQLite数据库
  * 包含用户、书籍和章节三个表
  * 
- * @version 7 数据库版本号（为章节表添加翻译相关字段）
+ * @version 8 数据库版本号（为章节表添加更新时间字段）
  * @exportSchema false 不导出schema文件
  */
 @Database(
@@ -28,7 +28,7 @@ import com.example.classwork2.database.entities.UserEntity
         BookEntity::class,
         ChapterEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -124,6 +124,17 @@ abstract class AppDatabase : RoomDatabase() {
         }
         
         /**
+         * 数据库迁移：版本7到8
+         * 为chapters表添加更新时间字段
+         */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 为chapters表添加更新时间字段
+                database.execSQL("ALTER TABLE chapters ADD COLUMN updateTime INTEGER NOT NULL DEFAULT ${System.currentTimeMillis()}")
+            }
+        }
+        
+        /**
          * 获取数据库实例（单例模式）
          * 
          * @param context 应用上下文
@@ -135,7 +146,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "magic_library_database"
-                ).addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7) // 添加数据库迁移
+                ).addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8) // 添加数据库迁移
                 .build()
                 INSTANCE = instance
                 instance
