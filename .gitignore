@@ -18,3 +18,9 @@ local.properties
 *.keystore
 *.jks
 gradle.properties
+
+# Database files
+*.db
+*.db3
+*.sqlite
+*.sqlite3
